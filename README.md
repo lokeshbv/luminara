@@ -2,6 +2,10 @@
 
 This turns a Raspberry Pi 4 (2 GB) into a streaming box for Netflix, Prime Video, JioHotstar and YouTube. While the screensaver is up, it shows what's playing on your Spotify account. Any phone or laptop on the home Wi-Fi can be the remote.
 
+![Illustrated preview of the Luminara TV launcher](docs/demo-preview.svg)
+
+*Illustrated launcher preview; pairing details are intentionally omitted.*
+
 ```
  phone / laptop ──HTTP + WebSocket──▶  controller (Python, :8080)  ──CDP, localhost:9222──▶  Chromium (kiosk, in cage)
                                         ├─ /tv      launcher page  ◀────────────────────────────── shown on the TV
