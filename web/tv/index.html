@@ -4,10 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Luminara</title>
-  <link rel="stylesheet" href="/tv/tv.css">
+  <link rel="stylesheet" href="/tv/tv.css?v=amber-rails-v2">
 </head>
 <body>
   <canvas class="ambient" id="ambient" width="192" height="108" aria-hidden="true"></canvas>
+  <div class="amber-wash" id="amber-wash" aria-hidden="true"></div>
+  <div class="ambient-rails" aria-hidden="true">
+    <span class="rail top"></span><span class="rail right"></span>
+    <span class="rail bottom"></span><span class="rail left"></span>
+  </div>
 
   <header class="top">
     <div class="brand">
@@ -54,6 +59,7 @@
       <div>
         <p class="pair-title" id="pair-title">Use your phone as the remote</p>
         <p class="muted">Scan the code, or open <strong id="url"></strong></p>
+        <p class="muted fallback" id="ip-url" hidden></p>
         <p id="pin" class="pin" hidden>PIN <strong></strong></p>
       </div>
     </aside>
@@ -81,7 +87,7 @@
 
 
   <p id="status" class="status" hidden>Reconnecting…</p>
-  <script src="/tv/tv.js"></script>
+  <script src="/tv/tv.js?v=amber-rails-v2"></script>
   <script src="/tv/device-settings.js"></script>
 </body>
 </html>

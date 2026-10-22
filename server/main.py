@@ -26,6 +26,7 @@ from .logos import Logos
 from .mirror import Mirror
 from .settings import NEEDS_DISPLAY_RESTART, SAVER_CHOICES, VOLUME_CHOICES, UserSettings
 from .spotify import POLL_SECONDS, Spotify, SpotifyError
+from .weather import forecast as weather_forecast
 from .system import System, health, kiosk_browser, restart_kiosk_browser, system_info, throttle_problems
 from .tls import Certificate, ensure_certificate
 from .updater import Updater
@@ -63,10 +64,12 @@ class Hub:
         self.spotify = Spotify(settings.data_dir, settings.port)
         self._spotify_watch: asyncio.Task | None = None
         self.browser.on_saver = self.on_saver
+        self.browser.on_weather = self.send_weather
         self.tls: Certificate | None = None  # set by main() when mkcert made a certificate
         self.browser.page_config = self.page_config()
         self.clients: dict[web.WebSocketResponse, str] = {}  # socket -> "tv" | "remote"
         self.volume = {"volume": None, "muted": False}
+        self.browser.on_overlay_volume = self.overlay_volume
         self.http: aiohttp.ClientSession | None = None
         self.jobs: list[asyncio.Task] = []
         self._recent_file = settings.data_dir / "recent.json"
@@ -93,6 +96,14 @@ class Hub:
             return
         payload = json.dumps({"t": "state", **self.snapshot()})
         await asyncio.gather(*(ws.send_str(payload) for ws in list(self.clients)), return_exceptions=True)
+
+    async def overlay_volume(self, action: str) -> None:
+        try:
+            self.volume = await self.system.set_volume(action)
+            self.osd(kind="volume", **self.volume)
+            await self.broadcast()
+        except (RuntimeError, ValueError) as exc:
+            log.warning("overlay volume change failed: %s", exc)
 
     async def send_to(self, role: str, message: dict) -> None:
         payload = json.dumps(message)
@@ -135,7 +146,7 @@ class Hub:
         """The settings overlay.js needs inside every page."""
         p = self.prefs
         dpad = [{"hosts": list(s.match), "cards": s.dpad_cards} for s in self.services if s.dpad]
-        return {"preferH264": p["prefer_h264"], "saverMinutes": p["saver_minutes"], "saverClock": p["saver_clock"], "dpad": dpad,
+        return {"preferH264": p["prefer_h264"], "saverMinutes": p["saver_minutes"], "saverClock": p["saver_clock"], "saverScene": p["saver_scene"], "dpad": dpad,
                 "home": self.settings.launcher_url}  # the screensaver only runs there
 
     def write_chromium_env(self) -> None:
@@ -146,7 +157,7 @@ class Hub:
         tmp.replace(path)
 
     async def apply_settings(self, changed: set[str]) -> None:
-        if changed & {"prefer_h264", "saver_minutes", "saver_clock"}:
+        if changed & {"prefer_h264", "saver_minutes", "saver_clock", "saver_scene"}:
             self.browser.spawn(self.browser.configure(self.page_config()))
         if changed & NEEDS_DISPLAY_RESTART:
             self.write_chromium_env()
@@ -177,6 +188,17 @@ class Hub:
             log.info("screensaver gone: Spotify watch stopped")
             self._spotify_watch.cancel()
             self._spotify_watch = None
+
+    async def send_weather(self) -> None:
+        try:
+            data = await weather_forecast(self.http)
+        except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, ValueError) as exc:
+            log.info("weather unavailable: %s", exc)
+            data = None
+        try:
+            await self.browser.weather(data)
+        except (RuntimeError, asyncio.TimeoutError):
+            log.debug("could not send screensaver weather to Chromium")
 
     async def watch_spotify(self) -> None:
         """While the screensaver shows: what's playing on the account, every POLL_SECONDS.
@@ -316,6 +338,10 @@ class Hub:
     # ---- pairing --------------------------------------------------------
 
     def remote_url(self) -> str:
+        host = socket.gethostname().split(".")[0].lower()
+        return f"http://{host}.local:{self.settings.port}/remote"
+
+    def remote_ip_url(self) -> str:
         return f"http://{lan_ip()}:{self.settings.port}/remote"
 
     def secure_urls(self) -> dict:
@@ -474,11 +500,23 @@ async def logo(request: web.Request):
 @routes.get("/api/info")
 async def info(request: web.Request):
     hub = request.app[HUB]
-    data = {"remote_url": hub.remote_url(), "hostname": socket.gethostname().split(".")[0],
+    data = {"remote_url": hub.remote_url(), "remote_ip_url": hub.remote_ip_url(),
+            "hostname": socket.gethostname().split(".")[0],
             "port": hub.settings.port, **hub.secure_urls()}
     if hub.auth and request.remote in LOCALHOST:  # only the TV itself may show the PIN
         data["pin"] = hub.auth.pin
     return web.json_response(data)
+
+
+@routes.get("/api/weather")
+async def weather(request: web.Request):
+    try:
+        data = await weather_forecast(request.app[HUB].http)
+    except (aiohttp.ClientError, asyncio.TimeoutError, KeyError, ValueError) as exc:
+        log.info("weather unavailable: %s", exc)
+        return web.json_response({"error": "Weather is unavailable"}, status=503,
+                                 headers={"Cache-Control": "no-store"})
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
 @routes.get("/api/services")
@@ -578,7 +616,7 @@ async def pair(request: web.Request):
 @routes.get("/api/settings")
 async def get_settings(request: web.Request):
     return web.json_response({"values": request.app[HUB].prefs.values,
-                              "choices": {"saver_minutes": SAVER_CHOICES, "boot_volume": VOLUME_CHOICES}})
+                              "choices": {"saver_minutes": SAVER_CHOICES, "saver_scene": ["aurora", "fireplace", "aquarium"], "boot_volume": VOLUME_CHOICES}})
 
 
 @routes.post("/api/settings")
@@ -673,11 +711,16 @@ async def network_status(request: web.Request):
     hub = request.app[HUB]
     wifi = await hub.system.wifi_status()
     try:
+        saved_wifi = await hub.system.wifi_saved()
+    except RuntimeError as exc:
+        saved_wifi = []
+        wifi["saved_error"] = str(exc)
+    try:
         bluetooth = await hub.system.bluetooth_devices()
         bluetooth_error = ""
     except RuntimeError as exc:
         bluetooth, bluetooth_error = [], str(exc)
-    return web.json_response({"wifi": wifi, "bluetooth": bluetooth, "bluetooth_error": bluetooth_error})
+    return web.json_response({"wifi": wifi, "saved_wifi": saved_wifi, "bluetooth": bluetooth, "bluetooth_error": bluetooth_error})
 
 
 @routes.post("/api/network/wifi/scan")
@@ -693,6 +736,39 @@ async def wifi_connect(request: web.Request):
     data = await read_json(request)
     try:
         result = await request.app[HUB].system.wifi_connect(data.get("ssid"), data.get("password", ""))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/wifi/connect-saved")
+async def wifi_connect_saved(request: web.Request):
+    data = await read_json(request)
+    try:
+        result = await request.app[HUB].system.wifi_connect_saved(data.get("ssid"))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/wifi/disconnect")
+async def wifi_disconnect(request: web.Request):
+    try:
+        result = await request.app[HUB].system.wifi_disconnect()
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/wifi/forget")
+async def wifi_forget(request: web.Request):
+    data = await read_json(request)
+    try:
+        result = await request.app[HUB].system.wifi_forget(data.get("ssid"))
     except ValueError as exc:
         raise web.HTTPBadRequest(text=str(exc))
     except RuntimeError as exc:
@@ -726,6 +802,30 @@ async def bluetooth_connect(request: web.Request):
     address = (await read_json(request)).get("address")
     try:
         result = await request.app[HUB].system.bluetooth_connect(address)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/bluetooth/disconnect")
+async def bluetooth_disconnect(request: web.Request):
+    address = (await read_json(request)).get("address")
+    try:
+        result = await request.app[HUB].system.bluetooth_disconnect(address)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/bluetooth/forget")
+async def bluetooth_forget(request: web.Request):
+    address = (await read_json(request)).get("address")
+    try:
+        result = await request.app[HUB].system.bluetooth_forget(address)
     except ValueError as exc:
         raise web.HTTPBadRequest(text=str(exc))
     except RuntimeError as exc:
@@ -916,6 +1016,7 @@ async def _startup(app: web.Application) -> None:
     hub.browser.start()
     hub.jobs = [
         asyncio.create_task(hub.apply_boot_volume()),
+        asyncio.create_task(hub.system.auto_connect_last_bluetooth()),
         asyncio.create_task(hub.logos.prefetch(hub.http)),
         asyncio.create_task(hub.announce_restart()),
         asyncio.create_task(hub.updater.run_periodic(lambda: hub.prefs["auto_update_check"], hub.on_update_status)),

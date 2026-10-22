@@ -75,90 +75,66 @@ function render() {
   paint(true);
 }
 
-// ---- ambient glow ----------------------------------------------------------------
-// The focused service's colour glowing from two corners, under a vignette. Drawn on a
-// small canvas the GPU stretches over the screen: the glows are so soft they look the
-// same, and changing colour redraws a few thousand pixels instead of crossfading two
-// full-screen layers, which was more than the Pi's GPU could do without dropping frames.
-const ambient = $("ambient").getContext("2d", { alpha: false });
-const GLOW_MS = 1100;
-let glow = { from: null, to: null, start: 0, raf: 0, drawn: 0 };
-
-function rgb(hex) {
-  const h = hex.replace("#", "");
-  const full = h.length === 3 ? [...h].map((c) => c + c).join("") : h;
-  const n = parseInt(full, 16);
-  return Number.isNaN(n) ? [124, 92, 255] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-// A little more saturated, as CSS's saturate(1.2) would make it.
-function saturate([r, g, b], s = 1.2) {
-  const m = [[0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s],
-             [0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s],
-             [0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s]];
-  return m.map(([a, b2, c]) => Math.min(255, Math.max(0, Math.round(a * r + b2 * g + c * b))));
-}
-
-function drawAmbient([r, g, b]) {
-  const ctx = ambient, w = ctx.canvas.width, h = ctx.canvas.height;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = "#07080c";
-  ctx.fillRect(0, 0, w, h);
-  // An elliptical glow (radii as fractions of the width and height): a circle stretched
-  // sideways by the transform, fading out at 70% of its size.
-  const blob = (cx, cy, rx, ry) => {
-    const RX = rx * w, RY = ry * h;
-    ctx.setTransform(RX / RY, 0, 0, 1, cx * w, cy * h);
-    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, RY * 0.7);
-    grad.addColorStop(0, `rgba(${r},${g},${b},.32)`);
-    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(-cx * w * RY / RX, -cy * h, w * RY / RX, h);
-  };
-  blob(0.22, 0.22, 0.63, 0.77);
-  blob(0.92, 0.85, 0.56, 0.70);
-  // Vignette.
-  ctx.setTransform(1.2 * w / (0.9 * h), 0, 0, 1, 0.5 * w, 0.4 * h);
-  const vig = ctx.createRadialGradient(0, 0, 0, 0, 0, 0.9 * h);
-  vig.addColorStop(0.4, "rgba(0,0,0,0)");
-  vig.addColorStop(1, "rgba(0,0,0,.65)");
-  ctx.fillStyle = vig;
-  ctx.fillRect(-0.5 * w * 0.9 * h / (1.2 * w), -0.4 * h, w * 0.9 * h / (1.2 * w), h);
-}
-
-function glowTo(hex) {
-  const to = saturate(rgb(hex));
-  if (!glow.to) {  // first paint: no fade
-    glow.to = to;
-    drawAmbient(to);
-    return;
+// ---- breathing amber corner bleed ---------------------------------------------
+// Modulate two offset radial gradients with slow, cross-coupled sine waves. Their
+// independent size, position and opacity shifts create a warm, organic breathing wash.
+const amberWash = $("amber-wash");
+const appGlow = $("ambient").getContext("2d", { alpha: false });
+let appGlowColor = "";
+function drawAppGlow(hex) {
+  if (hex === appGlowColor) return;
+  appGlowColor = hex;
+  const { canvas } = appGlow;
+  const { width: w, height: h } = canvas;
+  const match = /^#?([\da-f]{6})$/i.exec(hex || "");
+  const value = match ? parseInt(match[1], 16) : 0x7c5cff;
+  const r = value >> 16, g = (value >> 8) & 255, b = value & 255;
+  appGlow.setTransform(1, 0, 0, 1, 0, 0);
+  appGlow.fillStyle = "#07080c";
+  appGlow.fillRect(0, 0, w, h);
+  for (const [x, y, strength] of [[0,0,.40],[w,0,.31],[0,h,.31],[w,h,.40]]) {
+    const gradient = appGlow.createRadialGradient(x, y, 0, x, y, h * .72);
+    gradient.addColorStop(0, `rgba(${r},${g},${b},${strength})`);
+    gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    appGlow.fillStyle = gradient;
+    appGlow.fillRect(0, 0, w, h);
   }
-  const now = performance.now();
-  glow.from = glowAt(now);
-  glow.to = to;
-  glow.start = now;
-  if (!glow.raf) glow.raf = requestAnimationFrame(glowFrame);
 }
-
-const easeOut = (p) => 1 - (1 - p) ** 3;
-function glowAt(now) {
-  if (!glow.from) return glow.to;
-  const k = easeOut(Math.min(1, (now - glow.start) / GLOW_MS));
-  return glow.from.map((v, i) => Math.round(v + (glow.to[i] - v) * k));
-}
-
-// A slow colour fade looks the same redrawn 30 times a second as 60, for half the work.
-function glowFrame(now) {
-  const done = now - glow.start >= GLOW_MS;
-  if (done || now - glow.drawn >= 30) {
-    drawAmbient(glowAt(now));
-    glow.drawn = now;
+drawAppGlow("#7c5cff");
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let washLastFrame = 0;
+let washRaf = 0;
+function renderAmberWash(now) {
+  washRaf = 0;
+  if (document.hidden || reducedMotion.matches) return;
+  if (now - washLastFrame >= 32) {
+    washLastFrame = now;
+    const t = now / 1000;
+    const breathA = (Math.sin(t * .42) + 1) / 2;
+    const breathB = (Math.sin(t * .31 + 1.7) + 1) / 2;
+    const drift = Math.sin(t * .17 + .8);
+    const set = (name, value) => amberWash.style.setProperty(name, value);
+    set("--wash-a-x", `${2 + drift * 5}%`);
+    set("--wash-a-y", `${3 + Math.sin(t * .23) * 5}%`);
+    set("--wash-a-w", `${54 + breathA * 12}vw`);
+    set("--wash-a-h", `${64 + breathA * 15}vh`);
+    set("--wash-a-alpha", (0.34 + breathA * .14).toFixed(3));
+    set("--wash-b-x", `${97 - drift * 6}%`);
+    set("--wash-b-y", `${96 - Math.sin(t * .19 + 1.3) * 6}%`);
+    set("--wash-b-w", `${48 + breathB * 13}vw`);
+    set("--wash-b-h", `${58 + breathB * 18}vh`);
+    set("--wash-b-alpha", (0.27 + breathB * .11).toFixed(3));
   }
-  if (!done) glow.raf = requestAnimationFrame(glowFrame);
-  else { glow.raf = 0; glow.from = null; }
+  washRaf = requestAnimationFrame(renderAmberWash);
 }
-
-let glowColor = "";
+function startAmberWash() {
+  if (!washRaf && !document.hidden && !reducedMotion.matches) {
+    washRaf = requestAnimationFrame(renderAmberWash);
+  }
+}
+document.addEventListener("visibilitychange", startAmberWash);
+reducedMotion.addEventListener("change", startAmberWash);
+startAmberWash();
 // Runs on every D-pad press, so it only touches what changed: no page-wide style changes
 // and nothing that makes the browser lay the page out there and then.
 function setText(el, text) {
@@ -173,7 +149,8 @@ function paint(quiet = false) {
   const s = services.find((x) => x.id === selected);
   if (selected === "@settings") {
     const neutral = "#7c5cff";
-    if (neutral !== glowColor) { glowTo(neutral); glowColor = neutral; }
+    drawAppGlow(neutral);
+    document.documentElement.style.setProperty("--ambient-rail", neutral);
     $("hero-eyebrow").style.color = neutral;
     setText($("hero-eyebrow"), "Device setup");
     setText($("hero-title"), "Wi-Fi & Bluetooth");
@@ -182,12 +159,9 @@ function paint(quiet = false) {
   }
   if (!s) return;
 
-  // Fade the ambient glow to the new colour.
-  if (s.color !== glowColor) {
-    glowTo(s.color);
-    $("hero-eyebrow").style.color = s.color;
-    glowColor = s.color;
-  }
+  drawAppGlow(s.color);
+  document.documentElement.style.setProperty("--ambient-rail", s.color);
+  $("hero-eyebrow").style.color = s.color;
 
   const opened = state.recent?.[s.id];
   const newest = Math.max(0, ...Object.values(state.recent || {}));
@@ -330,6 +304,9 @@ async function loadInfo() {
   try {
     const info = await (await fetch("/api/info")).json();
     $("url").textContent = info.remote_url.replace(/^http:\/\//, "");
+    const fallback = $("ip-url");
+    fallback.hidden = !info.remote_ip_url || info.remote_ip_url === info.remote_url;
+    fallback.textContent = fallback.hidden ? "" : `If the hostname doesn’t open: ${info.remote_ip_url.replace(/^http:\/\//, "")}`;
     $("pin").hidden = !info.pin;
     if (info.pin) $("pin").querySelector("strong").textContent = info.pin;
     $("qr").src = `/qr.svg?u=${encodeURIComponent(info.remote_url)}&p=${info.pin || ""}`;

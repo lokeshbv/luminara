@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Luminara">
   <title>Luminara Remote</title>
   <link rel="icon" href="/remote/icon.svg" type="image/svg+xml">
-  <link rel="manifest" href="/remote/manifest.webmanifest">
+  <link rel="manifest" href="/remote/manifest.webmanifest?v=2">
   <link rel="stylesheet" href="/remote/remote.css">
 </head>
 <body>
@@ -152,8 +152,10 @@
       <section>
         <h3>Screensaver</h3>
         <div class="field"><span>Start after</span><div id="set-saver" class="seg"></div></div>
+        <div class="field"><span>Start with</span><div id="set-saver-scene" class="seg"></div></div>
+        <p class="note">Weather uses an approximate location from the TV’s internet connection.</p>
         <label class="switch-row"><span>Show the date<small>The time is always drawn by the dots.</small></span><input type="checkbox" id="set-saver-clock" class="switch"></label>
-        <p class="note">Never covers a playing video. While music plays, it shows the album on a turntable.</p>
+        <p class="note">Rotates through local weather, Aurora, Fireplace and Aquarium, one at a time. Never covers a playing video; while music plays, it shows the album on a turntable.</p>
         <button id="set-saver-preview" class="pill small">Preview on the TV</button>
       </section>
       <section>
@@ -200,6 +202,34 @@
           <span>Restart the TV display to apply this.</span>
           <button id="set-restart-now" class="pill small accent">Restart now</button>
         </div>
+      </section>
+      <section>
+        <h3>Wi-Fi</h3>
+        <p id="net-wifi-status" class="note">Loading Wi-Fi status…</p>
+        <p class="note">Saved networks stay listed after disconnecting. The last network you connect to is preferred at startup. Changing networks can disconnect this remote until your phone joins the same Wi-Fi.</p>
+        <button id="net-wifi-scan" class="pill small">Scan for networks</button>
+        <div id="net-wifi-list" class="list"></div>
+        <div id="net-wifi-password" class="stack" hidden>
+          <label class="field">Password for <span id="net-wifi-ssid"></span><input id="net-wifi-pass" class="field-input" type="password" maxlength="63" autocomplete="current-password"></label>
+          <div class="row"><button id="net-wifi-connect" class="pill small accent">Connect</button><button id="net-wifi-cancel" class="pill small">Cancel</button></div>
+        </div>
+      </section>
+      <section>
+        <h3>Bluetooth</h3>
+        <p id="net-bt-status" class="note">Paired devices stay saved after disconnecting. The last device you connect to is retried at startup.</p>
+        <button id="net-bt-scan" class="pill small">Scan for devices</button>
+        <div id="net-bt-list" class="list"></div>
+      </section>
+      <section id="android-install" hidden>
+        <h3>Install on Android</h3>
+        <p class="note">For Android app installation, open the secure address on the Pi’s Wi-Fi. First install this box’s certificate so Chrome can trust that local HTTPS address.</p>
+        <div class="row">
+          <a id="pwa-cert" class="pill small" href="/ca.crt" download>Download certificate</a>
+          <a id="pwa-secure-link" class="pill small accent" href="#" hidden>Open secure remote</a>
+        </div>
+        <p class="note">Android: Settings → Security → Install a certificate → CA certificate, then select the downloaded file. Menu names vary by phone. Reopen the secure remote in Chrome and choose Install app from ⋮, or use the button below.</p>
+        <button id="pwa-install" class="pill small accent" hidden>Install Luminara</button>
+        <p id="pwa-status" class="note" aria-live="polite"></p>
       </section>
       <section>
         <h3>Updates</h3>
@@ -285,6 +315,8 @@
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/remote/remote.js"></script>
   <script src="/remote/settings.js"></script>
+  <script src="/remote/network-settings.js?v=2"></script>
+  <script src="/remote/install.js"></script>
   <script src="/remote/mirror.js"></script>
   <script src="/remote/cast.js"></script>
 </body>

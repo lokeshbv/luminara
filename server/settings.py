@@ -15,6 +15,7 @@ DEFAULTS = {
     "hidden_apps": [],         # service ids not shown on the TV or remote
     "saver_minutes": 5,        # screensaver after this much idle time
     "saver_clock": True,       # show the time on the screensaver
+    "saver_scene": "aurora",  # aurora, fireplace, aquarium
     "boot_volume": 100,
     "prefer_h264": True,       # steer sites to hardware-decoded H.264 instead of VP9/AV1
     "lite_browser": True,      # fewer Chromium processes (no site isolation); needs a display restart
@@ -31,6 +32,8 @@ def _valid(key: str, value, service_ids: set[str]) -> bool:
         return isinstance(value, list) and all(v in service_ids for v in value)
     if key == "saver_minutes":
         return value in SAVER_CHOICES
+    if key == "saver_scene":
+        return value in {"aurora", "fireplace", "aquarium"}
     if key == "boot_volume":
         return value in VOLUME_CHOICES
     if key == "update_dismissed":

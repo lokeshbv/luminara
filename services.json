@@ -68,5 +68,15 @@
     "tile": "radial-gradient(120% 140% at 50% 0%, #3a0a08 0%, #15151e 70%)",
     "logo": {"url": "https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg"},
     "icon": {"url": "https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg", "bg": "#15151e", "size": "72%"}
+  },
+  {
+    "id": "browser",
+    "name": "Browser",
+    "tagline": "Search and browse the web",
+    "url": "https://www.google.com/",
+    "match": ["google.com"],
+    "glyph": "🌐",
+    "color": "#8ab4f8",
+    "tile": "radial-gradient(120% 140% at 50% 0%, #26364c 0%, #10151d 72%)"
   }
 ]

@@ -50,6 +50,27 @@ def wifi_status() -> dict:
     return {"available": True, "connected": ""}
 
 
+def wifi_profiles() -> list[dict]:
+    output = run("nmcli", "-t", "-f", "NAME,TYPE", "connection", "show")
+    profiles = []
+    for line in output.splitlines():
+        fields = split_nmcli(line)
+        if len(fields) < 2 or fields[1] != "802-11-wireless":
+            continue
+        name = fields[0]
+        ssid = run("nmcli", "-g", "802-11-wireless.ssid", "connection", "show", "id", name).strip()
+        if ssid:
+            profiles.append({"name": name, "ssid": ssid})
+    return profiles
+
+
+def prefer_wifi(ssid: str) -> None:
+    profile = next((p for p in wifi_profiles() if p["ssid"] == ssid), None)
+    if profile:
+        run("nmcli", "connection", "modify", "id", profile["name"],
+            "connection.autoconnect", "yes", "connection.autoconnect-priority", "100")
+
+
 def wifi_scan() -> list[dict]:
     output = run("nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes", timeout=18)
     networks, seen = [], set()
@@ -63,7 +84,27 @@ def wifi_scan() -> list[dict]:
         seen.add(ssid)
         networks.append({"ssid": ssid, "signal": int(signal) if signal.isdigit() else 0,
                          "security": "" if security in ("", "--") else security, "active": active == "*"})
+    saved = {p["ssid"] for p in wifi_profiles()}
+    for network in networks:
+        network["saved"] = network["ssid"] in saved
     return sorted(networks, key=lambda n: (not n["active"], -n["signal"], n["ssid"].casefold()))
+
+
+def wifi_saved() -> list[dict]:
+    active = wifi_status().get("connected", "")
+    return [{"ssid": p["ssid"], "saved": True, "active": p["name"] == active, "signal": 0, "security": "Saved"}
+            for p in wifi_profiles()]
+
+
+def wifi_forget(ssid: str) -> str:
+    if not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32 or "\0" in ssid:
+        raise ValueError("Choose a valid Wi-Fi network")
+    profiles = [p["name"] for p in wifi_profiles() if p["ssid"] == ssid]
+    if not profiles:
+        raise RuntimeError("No saved Wi-Fi profile was found for that network")
+    for name in profiles:
+        run("nmcli", "connection", "delete", "id", name)
+    return f"Forgot {ssid}"
 
 
 def bluetooth_devices(scan: bool = False) -> list[dict]:
@@ -100,6 +141,33 @@ def bluetooth_devices(scan: bool = False) -> list[dict]:
     return sorted(devices.values(), key=lambda d: (not d["paired"], d["name"].casefold()))
 
 
+def bluetooth_pair(address: str) -> str:
+    """Pair through one interactive bluetoothctl agent, then confirm BlueZ kept the bond."""
+    address = address.upper()
+    proc = subprocess.Popen(("bluetoothctl", "--agent", "NoInputNoOutput"), stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    assert proc.stdin
+    try:
+        # bluetoothctl registers its agent at startup. Give it a moment before sending
+        # commands; registering a second agent from stdin makes pairing fail on BlueZ.
+        time.sleep(0.7)
+        proc.stdin.write(f"pair {address}\n")
+        proc.stdin.flush()
+        time.sleep(18)
+        proc.stdin.write(f"trust {address}\nquit\n")
+        proc.stdin.flush()
+        output, _ = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        output, _ = proc.communicate()
+        raise RuntimeError("Bluetooth pairing timed out")
+    paired = run("bluetoothctl", "devices", "Paired", timeout=8)
+    if not re.search(rf"Device {re.escape(address)}(?:\s|$)", paired, re.IGNORECASE):
+        detail = " · ".join(line.strip() for line in output.splitlines() if line.strip())
+        raise RuntimeError(detail[-500:] or "Bluetooth did not keep the pairing. Keep the device in pairing mode and try again.")
+    return "Paired and trusted"
+
+
 def main() -> None:
     try:
         request = json.load(sys.stdin)
@@ -116,6 +184,27 @@ def main() -> None:
             args = ("nmcli", "--ask", "--wait", "30", "device", "wifi", "connect", ssid) if password else (
                 "nmcli", "--wait", "30", "device", "wifi", "connect", ssid)
             result = {"message": run(*args, input_text=password + "\n", timeout=35)}
+            prefer_wifi(ssid)
+        elif action == "wifi-connect-saved":
+            ssid = request.get("ssid")
+            if not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32 or "\0" in ssid:
+                raise ValueError("Choose a valid Wi-Fi network")
+            profile = next((p for p in wifi_profiles() if p["ssid"] == ssid), None)
+            if not profile:
+                raise RuntimeError("No saved Wi-Fi profile was found for that network")
+            result = {"message": run("nmcli", "connection", "up", "id", profile["name"], timeout=30)}
+            prefer_wifi(ssid)
+        elif action == "wifi-saved":
+            result = {"networks": wifi_saved()}
+        elif action == "wifi-disconnect":
+            output = run("nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device")
+            devices = [fields[0] for line in output.splitlines() for fields in [split_nmcli(line)]
+                       if len(fields) >= 3 and fields[1] == "wifi" and fields[2] == "connected"]
+            if not devices:
+                raise RuntimeError("Wi-Fi is already disconnected")
+            result = {"message": run("nmcli", "device", "disconnect", devices[0], timeout=12)}
+        elif action == "wifi-forget":
+            result = {"message": wifi_forget(request.get("ssid"))}
         elif action == "bluetooth-devices":
             result = {"devices": bluetooth_devices()}
         elif action == "bluetooth-scan":
@@ -124,13 +213,22 @@ def main() -> None:
             address = request.get("address")
             if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
                 raise ValueError("Choose a Bluetooth device from the scan list")
-            result = {"message": run("bluetoothctl", "--agent", "DisplayOnly", "--timeout", "20",
-                                      input_text=f"agent DisplayOnly\ndefault-agent\npair {address.upper()}\n", timeout=25)}
+            result = {"message": bluetooth_pair(address)}
         elif action == "bluetooth-connect":
             address = request.get("address")
             if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
                 raise ValueError("Choose a Bluetooth device from the scan list")
             result = {"message": run("bluetoothctl", "connect", address.upper(), timeout=20)}
+        elif action == "bluetooth-disconnect":
+            address = request.get("address")
+            if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+                raise ValueError("Choose a Bluetooth device from the list")
+            result = {"message": run("bluetoothctl", "disconnect", address.upper(), timeout=12)}
+        elif action == "bluetooth-forget":
+            address = request.get("address")
+            if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+                raise ValueError("Choose a Bluetooth device from the list")
+            result = {"message": run("bluetoothctl", "remove", address.upper(), timeout=12)}
         else:
             raise ValueError("Unknown network action")
         print(json.dumps({"ok": True, **result}))

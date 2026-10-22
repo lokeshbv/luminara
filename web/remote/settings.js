@@ -4,7 +4,7 @@
 
 const sheet = $("settings");
 let prefs = {};
-let choices = { saver_minutes: [0, 1, 2, 5, 10, 15, 30], boot_volume: [0, 25, 50, 75, 100] };
+let choices = { saver_minutes: [0, 1, 2, 5, 10, 15, 30], saver_scene: ["aurora", "fireplace", "aquarium"], boot_volume: [0, 25, 50, 75, 100] };
 let spotify = {};
 
 async function saveSetting(changes) {
@@ -61,6 +61,9 @@ function paintSettings() {
 
   segmented($("set-saver"), choices.saver_minutes, prefs.saver_minutes,
     (v) => (v === 0 ? "Off" : `${v} min`), (v) => saveSetting({ saver_minutes: v }));
+  segmented($("set-saver-scene"), choices.saver_scene, prefs.saver_scene || "aurora",
+    (v) => ({ aurora: "Aurora", fireplace: "Fireplace", aquarium: "Aquarium" }[v] || v),
+    (v) => saveSetting({ saver_scene: v }));
   segmented($("set-volume"), choices.boot_volume, prefs.boot_volume,
     (v) => (v === 0 ? "As left" : `${v}%`), (v) => saveSetting({ boot_volume: v }));
   $("set-saver-clock").checked = prefs.saver_clock;
@@ -203,6 +206,7 @@ async function openSettings() {
   choices = data.choices || choices;
   $("set-restart-note").hidden = true;
   sheet.showModal();
+  document.dispatchEvent(new Event("luminara:settings-open"));
   paintSettings();
   loadSpotify();
   loadAbout();

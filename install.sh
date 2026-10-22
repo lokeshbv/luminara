@@ -33,7 +33,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
   git curl python3-venv iw network-manager bluez \
   cage \
-  pipewire pipewire-pulse wireplumber \
+  pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth \
   libwidevinecdm0 \
   avahi-daemon \
   mkcert \

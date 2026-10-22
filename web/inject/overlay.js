@@ -10,7 +10,7 @@
 // Everything visual lives in a shadow root so page CSS can't touch it, and is built
 // without innerHTML because YouTube and others enforce Trusted Types.
 (() => {
-  const cfg = Object.assign({ preferH264: true, saverMinutes: 5, saverClock: true }, window.__tvboxConfig || {});
+  const cfg = Object.assign({ preferH264: true, saverMinutes: 5, saverClock: true, saverScene: "aurora" }, window.__tvboxConfig || {});
 
   // ---- codec steering (all frames: players sometimes live in iframes) ----------
   if (cfg.preferH264 && !window.__tvboxCodecs) {
@@ -75,6 +75,52 @@
     .saver.on { opacity: 1; visibility: visible; transition: opacity 3.2s cubic-bezier(.4,0,.2,1), visibility 0s; }
     .saver.leaving { transition: opacity .7s ease-out, visibility 0s linear .7s; }
     .saver canvas { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .7s ease; }
+    .scene { position:absolute; inset:0; overflow:hidden; opacity:1; transition:opacity 1.2s ease; }
+    .scene.aurora { background:radial-gradient(ellipse at 50% 100%,#10222c 0, #050a12 62%,#020308 100%); }
+    .scene.aurora::before,.scene.aurora::after { content:""; position:absolute; inset:-30% -10%; border-radius:50%; filter:blur(34px); transform-origin:50% 60%; animation:aurora-drift 24s ease-in-out infinite alternate; }
+    .scene.aurora::before { background:conic-gradient(from 205deg at 50% 68%,transparent 0 24%,rgba(61,210,160,.18) 30%,rgba(88,181,242,.28) 37%,rgba(151,102,226,.20) 44%,transparent 52% 100%); }
+    .scene.aurora::after { background:conic-gradient(from 198deg at 50% 70%,transparent 0 29%,rgba(89,236,191,.18) 35%,rgba(82,177,255,.22) 41%,transparent 49% 100%); animation-duration:31s; animation-direction:alternate-reverse; }
+    .scene.fireplace { background:radial-gradient(ellipse at 50% 100%,#6b2208 0,#1e0b08 36%,#060506 76%); }
+    .scene.fireplace::before { content:""; position:absolute; left:20%; right:20%; bottom:-35%; height:100%; border-radius:50% 50% 12% 12%; background:radial-gradient(ellipse at 50% 100%,#fff2a8 0 5%,#ffb12e 17%,#ed4c14 38%,rgba(136,27,8,.58) 57%,transparent 73%); filter:blur(24px); animation:fire-breathe 2.7s ease-in-out infinite alternate; }
+    .scene.fireplace::after { content:""; position:absolute; left:25%; right:25%; bottom:7%; height:10%; border-radius:50%; background:linear-gradient(#70402a,#20120e); box-shadow:0 0 45px 20px rgba(255,87,18,.22); }
+    .scene.aquarium { background:radial-gradient(ellipse at 50% 0%,#145778 0,#062436 42%,#02080e 100%); }
+    .scene.aquarium::before { content:""; position:absolute; inset:-20%; background:repeating-conic-gradient(from 8deg at 50% -5%,transparent 0 8deg,rgba(108,221,241,.12) 9deg 11deg,transparent 12deg 24deg); filter:blur(12px); animation:water-drift 18s ease-in-out infinite alternate; }
+    .bubble { position:absolute; bottom:-12vh; left:var(--x); width:var(--size); height:var(--size); border:1px solid rgba(194,244,255,.55); border-radius:50%; box-shadow:inset -2px -2px 5px rgba(122,224,255,.18),0 0 12px rgba(91,203,242,.16); animation:bubble-rise var(--duration) linear var(--delay) infinite; }
+    @keyframes aurora-drift { from { transform:rotate(-8deg) translate3d(-3%,2%,0) scale(.94); } to { transform:rotate(9deg) translate3d(4%,-3%,0) scale(1.08); } }
+    @keyframes fire-breathe { from { transform:scaleX(.88) scaleY(.94); opacity:.72; } to { transform:scaleX(1.08) scaleY(1.08); opacity:1; } }
+    @keyframes water-drift { from { transform:translate3d(-3%,1%,0) rotate(-3deg); } to { transform:translate3d(3%,-2%,0) rotate(4deg); } }
+    @keyframes bubble-rise { to { transform:translate3d(3vw,-125vh,0); opacity:0; } }
+    .weather { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column; justify-content:center; padding:8vh 12vw; overflow:hidden; isolation:isolate; background:linear-gradient(145deg,#111b2c,#060a12 72%); opacity:0; visibility:hidden; transition:opacity 1s ease,visibility 0s linear 1s; }
+    .weather::before,.weather::after { content:""; position:absolute; pointer-events:none; z-index:-1; }
+    .weather::before { width:82vw; height:82vw; right:-22vw; top:-58vh; border-radius:50%; background:radial-gradient(circle,rgba(112,188,255,.28),rgba(64,132,205,.1) 38%,transparent 70%); filter:blur(12px); animation:weather-breathe 18s ease-in-out infinite alternate; }
+    .weather::after { inset:-40% -20%; opacity:0; background:repeating-linear-gradient(105deg,transparent 0 54px,rgba(210,235,255,.14) 56px,transparent 58px 100px); transform:translate3d(-3%,0,0); }
+    .weather[data-kind="clear"] { background:linear-gradient(145deg,#253b50,#111d2c 55%,#080b12); }
+    .weather[data-kind="clear"]::before { background:radial-gradient(circle,rgba(255,198,93,.42),rgba(246,153,76,.15) 38%,transparent 70%); }
+    .weather[data-kind="rain"],.weather[data-kind="storm"] { background:linear-gradient(145deg,#152638,#09111c 58%,#05080e); }
+    .weather[data-kind="rain"]::after,.weather[data-kind="storm"]::after { opacity:.8; animation:weather-rain 1.2s linear infinite; }
+    .weather[data-kind="snow"] { background:linear-gradient(145deg,#273b4d,#111c29 60%,#080b12); }
+    .weather[data-kind="snow"]::before { background:radial-gradient(circle,rgba(195,228,255,.3),rgba(111,163,206,.1) 42%,transparent 70%); }
+    .weather[data-kind="fog"] { background:linear-gradient(145deg,#28303a,#121923 60%,#080b12); }
+    .weather > * { position:relative; z-index:1; }
+    .weather-mode .weather { opacity:1; visibility:visible; transition:opacity 1s ease; }
+    .weather-top { display:flex; align-items:center; justify-content:space-between; gap:2vw; }
+    .weather-place { font-size:3vh; color:rgba(255,255,255,.72); letter-spacing:.12em; text-transform:uppercase; }
+    .weather-now { display:flex; align-items:center; gap:2vw; margin-top:2vh; }
+    .weather-temp { font-size:16vh; line-height:1; font-weight:250; letter-spacing:-.05em; }
+    .weather-copy { font-size:4vh; color:rgba(255,255,255,.88); }
+    .weather-feels { display:block; margin-top:1vh; font-size:2.3vh; color:rgba(255,255,255,.62); }
+    .weather-icon { font-size:11vh; width:12vh; text-align:center; }
+    .weather-days { display:flex; gap:4vw; margin-top:4vh; border-top:1px solid rgba(255,255,255,.18); padding-top:2vh; }
+    .weather-day { min-width:10vw; display:grid; grid-template-columns:1fr auto; gap:.7vh 1vw; align-items:center; font-size:2.4vh; color:rgba(255,255,255,.7); }
+    .weather-day b { color:#fff; font-size:2.8vh; }
+    .weather-day i { font-style:normal; grid-row:span 2; font-size:3.5vh; }
+    @keyframes weather-breathe { from { transform:translate3d(-3%,1%,0) scale(.92); } to { transform:translate3d(3%,5%,0) scale(1.08); } }
+    @keyframes weather-rain { to { transform:translate3d(6%,12%,0); } }
+    .weather[hidden] { display:none; }
+    .music .scene { opacity:0; }
+    .music .weather { opacity:0; transition:opacity .6s ease; }
+    .weather-mode .scene,.weather-mode canvas,.weather-mode .clock { opacity:0; }
+    .saver:not(.on) .scene,.saver:not(.on) .scene::before,.saver:not(.on) .scene::after,.saver:not(.on) .bubble { animation-play-state:paused; }
     .clock { position: absolute; left: 50%; top: 50%; translate: -50% -50%; text-align: center; color: rgba(255,255,255,.92);
              text-shadow: 0 0 40px rgba(0,0,0,.9), 0 0 12px rgba(0,0,0,.8); }
     .clock b { display: block; font-size: 12vh; font-weight: 200; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -83,6 +129,42 @@
     .saver.plain:not(.music) .clock { display: block; }  /* unless there's no WebGL to draw them */
     .music .clock { left: auto; top: 6vh; right: 6vw; translate: none; text-align: right; }
     .music .clock b { font-size: 6vh; }
+
+    /* Invisible top-right hot corner opens the translucent navigation rail on pointer entry. */
+    .nav-hotspot { position: absolute; right: 0; top: 0; width: 96px; height: 96px; padding:0;
+      border:0; color:transparent; background:transparent; opacity:0; pointer-events:auto; touch-action:manipulation; }
+    .nav-panel { position: absolute; right: 20px; top: 50%; translate: 0 -50%; width: 220px; max-height: 94vh; overflow:auto; padding: 5px; border-radius: 20px;
+      color: #fff; background: rgba(25,27,34,.38); border: 1px solid rgba(255,255,255,.23);
+      box-shadow: 0 18px 48px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.13); backdrop-filter: blur(30px) saturate(1.65); -webkit-backdrop-filter: blur(30px) saturate(1.65); pointer-events: auto;
+      opacity: 0; visibility: hidden; transform: translateX(16px) scale(.97); transition: opacity .22s ease, transform .34s cubic-bezier(.2,.9,.25,1.12), visibility 0s linear .34s; }
+    .nav-panel.open { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+    .nav-head { display:none; }
+    .nav-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+    .nav-button { min-height: 68px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+      border: 0; border-radius: 0; color:rgba(235,238,247,.82); background:transparent;
+      font:600 15px/1.1 system-ui,sans-serif; touch-action: manipulation; transition: color .18s, background .18s, transform .18s, border-color .18s; }
+    .nav-button + .nav-button { border-top:1px solid rgba(255,255,255,.12); }
+    .nav-button:first-child { border-radius:15px 15px 0 0; }
+    .nav-button:last-child { border-radius:0 0 15px 15px; }
+    .nav-button svg { width:27px; height:27px; stroke:currentColor; }
+    .nav-button:hover, .nav-button:focus-visible { background:rgba(124,92,255,.26); color:#fff; }
+    .nav-button:active { background:rgba(124,92,255,.55); color:#fff; transform:scale(.98); }
+    .nav-panel.open .nav-button { animation: nav-item-in .28s both; }
+    .nav-panel.open .nav-button:nth-child(1) { animation-delay:.02s; }
+    .nav-panel.open .nav-button:nth-child(2) { animation-delay:.055s; }
+    .nav-panel.open .nav-button:nth-child(3) { animation-delay:.09s; }
+    .nav-panel.open .nav-button:nth-child(4) { animation-delay:.125s; }
+    .nav-panel.open .nav-button:nth-child(5) { animation-delay:.16s; }
+    @keyframes nav-item-in { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:none; } }
+    @media (prefers-reduced-motion: reduce) { .nav-panel, .nav-button { transition-duration:.01ms !important; animation:none !important; } }
+    .tv-keyboard { position:absolute; left:50%; bottom:5vh; translate:-50% 0; width:min(760px,82vw); padding:14px; border-radius:20px;
+      background:rgba(15,18,26,.78); border:1px solid rgba(255,255,255,.2); box-shadow:0 12px 38px rgba(0,0,0,.4); backdrop-filter:blur(14px);
+      display:grid; gap:6px; pointer-events:auto; }
+    .tv-keyboard[hidden] { display:none; }
+    .tv-keyrow { display:flex; justify-content:center; gap:5px; }
+    .tv-key { min-width:38px; min-height:42px; padding:0 8px; border:1px solid rgba(255,255,255,.15); border-radius:10px;
+      background:rgba(255,255,255,.12); color:#fff; font:600 16px system-ui,sans-serif; touch-action:manipulation; }
+    .tv-key.wide { min-width:82px; font-size:13px; }
 
     /* Turntable (music playing) */
     /* Clock <-> turntable. The turntable is always laid out (so the particles know where
@@ -163,11 +245,16 @@
     @keyframes spin { to { transform: rotate(360deg); } }
   `;
   const ICONS = {
+    back: ["M19 12H5", "m12 19-7-7 7-7"],
+    home: ["m3 10 9-7 9 7", "M5 9v12h14V9", "M9 21v-7h6v7"],
+    volumeDown: ["M11 5 6 9H3v6h3l5 4z", "M19 9l-5 6"],
+    volumeUp: ["M11 5 6 9H3v6h3l5 4z", "M15.5 8.5a5 5 0 0 1 0 7", "M19 6a8.5 8.5 0 0 1 0 12"],
     speaker: ["M4 9h4l5-4v14l-5-4H4z", "M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"],
     muted: ["M4 9h4l5-4v14l-5-4H4z", "M17 9l5 6M22 9l-5 6"],
     phone: ["M9.5 2.5h5A2.5 2.5 0 0 1 17 5v14a2.5 2.5 0 0 1-2.5 2.5h-5A2.5 2.5 0 0 1 7 19V5a2.5 2.5 0 0 1 2.5-2.5z", "M11 18.5h2"],
     update: ["M20 12a8 8 0 1 1-2.34-5.66", "M20 4v5h-5"],
     info: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v5M12 8h.01"],
+    keyboard: ["M3 6h18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z", "M5 10h.01M8 10h.01M11 10h.01M14 10h.01M17 10h.01M19 10h.01M7 13h.01M10 13h.01M13 13h.01M16 13h.01M9 16h6"],
   };
   const SVG = "http://www.w3.org/2000/svg";
 
@@ -191,7 +278,10 @@
     }));
   }
 
-  let host = null, ui = null;
+  let host = null, ui = null, lastPageFocus = null;
+  addEventListener("focusin", (event) => {
+    if (!host || !host.contains(event.target)) lastPageFocus = event.target;
+  }, true);
   function ensure() {
     if (ui) return mount(), ui;
     host = document.createElement("tvbox-overlay");
@@ -202,6 +292,20 @@
 
     // screensaver
     u.saver = el("div", "saver", layer);
+    u.scene = el("div", `scene ${cfg.saverScene || "aurora"}`, u.saver);
+    for (let i = 0; i < 10; i++) {
+      const bubble = el("i", "bubble", u.scene);
+      bubble.style.setProperty("--x", `${8 + (i * 37) % 86}%`);
+      bubble.style.setProperty("--size", `${1 + (i % 4) * .7}vh`);
+      bubble.style.setProperty("--duration", `${13 + (i % 5) * 3}s`);
+      bubble.style.setProperty("--delay", `${-((i * 7) % 19)}s`);
+    }
+    u.weather = el("aside", "weather", u.saver);
+    u.weather.hidden = true;
+    u.weatherPlace = el("div", "weather-place", u.weather);
+    u.weatherTop = el("div", "weather-top", u.weather);
+    u.weatherNow = el("div", "weather-now", u.weatherTop);
+    u.weatherDays = el("div", "weather-days", u.weather);
     u.canvas = el("canvas", "", u.saver);
     u.tt = el("div", "tt", u.saver);
     const deck = u.deck = el("div", "deck", u.tt);
@@ -239,6 +343,39 @@
     el("div", "", u.updating).textContent = "Updating Luminara…";
     el("small", "", u.updating).textContent = "The TV will restart in a moment";
     u.dot = el("div", "dot", layer);
+    u.navHotspot = el("button", "nav-hotspot", layer);
+    u.navHotspot.type = "button";
+    u.navHotspot.setAttribute("aria-label", "Open TV navigation");
+    u.navHotspot.textContent = "⋮";
+    u.navPanel = el("div", "nav-panel", layer);
+    const navHead = el("div", "nav-head", u.navPanel);
+    el("span", "", navHead).textContent = "CONTROL";
+    const close = el("button", "nav-button", navHead);
+    close.type = "button"; close.textContent = "×"; close.setAttribute("aria-label", "Close navigation"); close.style.display = "none";
+    u.navGrid = el("div", "nav-grid", u.navPanel);
+    for (const [label, action, glyph, cls] of [["Back", "back", "back", "nav-back"], ["Home", "home", "home", "nav-home"], ["Type", "type", "keyboard", "nav-type"], ["Vol −", "vol_down", "volumeDown"], ["Vol +", "vol_up", "volumeUp"]]) {
+      const b = el("button", `nav-button ${cls || ""}`, u.navGrid);
+      b.type = "button"; b.setAttribute("aria-label", action === "type" ? "Type" : action);
+      icon(svgIn(b), glyph);
+      el("span", "", b).textContent = label;
+      b.addEventListener("click", (event) => { navTouch(event); if(action === "type") showKeyboard(); else navAction(action); });
+    }
+    u.keyboard = el("div", "tv-keyboard", layer); u.keyboard.hidden = true;
+    for (const letters of ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]) {
+      const row = el("div", "tv-keyrow", u.keyboard);
+      for (const letter of letters) addTvKey(row, letter, letter);
+    }
+    const keyActions = el("div", "tv-keyrow", u.keyboard);
+    addTvKey(keyActions, "Space", " ", "wide"); addTvKey(keyActions, "⌫", "backspace", "wide");
+    addTvKey(keyActions, "Enter", "enter", "wide"); addTvKey(keyActions, "Done", "close", "wide");
+    const navTouch = (event) => { event.stopPropagation(); };
+    const navClick = (event) => { event.preventDefault(); event.stopPropagation(); };
+    u.navHotspot.addEventListener("pointerenter", onHotCornerMove);
+    u.navHotspot.addEventListener("mouseenter", onHotCornerMove);
+    u.navHotspot.addEventListener("click", (event) => { navClick(event); if (event.detail === 0) toggleNav(); });
+    close.addEventListener("pointerdown", navTouch);
+    close.addEventListener("click", (event) => { navClick(event); closeNav(); });
+    u.navGrid.addEventListener("pointerdown", navTouch);
     mount();
     return u;
   }
@@ -251,6 +388,67 @@
   document.addEventListener("fullscreenchange", mount);
 
   const timers = {};
+  function closeNav() {
+    if (!ui) return;
+    ui.navPanel.classList.remove("open");
+    ui.navHotspot.textContent = "⋮";
+    clearTimeout(timers.nav);
+  }
+  function toggleNav() {
+    const u = ensure();
+    const open = !u.navPanel.classList.contains("open");
+    u.navPanel.classList.toggle("open", open);
+    u.navHotspot.textContent = open ? "×" : "⋮";
+    clearTimeout(timers.nav);
+    if (open) timers.nav = setTimeout(closeNav, 12000);
+  }
+  function navAction(action) {
+    if (action === "home" || action === "back" || action === "up" || action === "down" || action === "left" || action === "right" || action === "ok" || action === "vol_down" || action === "vol_up") {
+      signal({ nav: action });
+      if (action !== "home") { clearTimeout(timers.nav); timers.nav = setTimeout(closeNav, 12000); }
+      else closeNav();
+    }
+  }
+
+  function addTvKey(row, label, value, cls="") {
+    const key = el("button", `tv-key ${cls}`, row); key.type="button"; key.textContent=label;
+    key.addEventListener("click", (event) => {
+      event.preventDefault(); event.stopPropagation();
+      if (value === "close") { ui.keyboard.hidden = true; return; }
+      restoreTypingFocus();
+      signal(value === "backspace" || value === "enter" ? { keyboard: value } : { text: value });
+    });
+  }
+  function showKeyboard() {
+    const u=ensure(); u.keyboard.hidden=false;
+    restoreTypingFocus();
+    clearTimeout(timers.nav); timers.nav=setTimeout(closeNav, 30000);
+  }
+  function restoreTypingFocus() {
+    if (lastPageFocus && lastPageFocus.isConnected && typeof lastPageFocus.focus === "function") {
+      try { lastPageFocus.focus({ preventScroll: true }); } catch { /* non-focusable page element */ }
+    }
+  }
+
+  // Open/close as the pointer enters the reserved top-right hot corner, without requiring a click.
+  // Toggle only once per entry so small pointer jitter inside the corner cannot flap the rail.
+  let pointerWasInHotCorner = false;
+  const onHotCornerMove = (event) => {
+    const inCorner = event.clientX >= innerWidth - 96 && event.clientY <= 96;
+    if (!inCorner) { pointerWasInHotCorner = false; return; }
+    if (pointerWasInHotCorner) return;
+    pointerWasInHotCorner = true;
+    if (ui) toggleNav();
+  };
+  // CDP mouse input reliably emits mousemove, while touch/pen devices emit pointermove.
+  addEventListener("mousemove", onHotCornerMove, true);
+  addEventListener("pointermove", onHotCornerMove, true);
+  addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toggleNav();
+  }, true);
+
   function flash(node, key, ms) {
     node.classList.add("show");
     clearTimeout(timers[key]);
@@ -261,6 +459,24 @@
 
   let lastInput = Date.now();
   let saverOn = false;
+  let weatherTimer = 0;
+  let sceneTimer = 0;
+  let sceneIndex = 0;
+  let sceneSequence = [];
+  const SCENE_DURATION = 30_000;
+
+  function makeSceneSequence() {
+    const scenes = ["aurora", "fireplace", "aquarium"];
+    const first = scenes.includes(cfg.saverScene) ? cfg.saverScene : "aurora";
+    return [first, ...scenes.filter((scene) => scene !== first), "weather"];
+  }
+  function showSceneSlide() {
+    if (!ui || !saverOn || !sceneSequence.length) return;
+    const slide = sceneSequence[sceneIndex];
+    ui.saver.classList.toggle("weather-mode", slide === "weather");
+    if (slide === "weather") refreshWeather();
+    else ui.scene.className = `scene ${slide}`;
+  }
 
   function onInput(e) {
     lastInput = Date.now();
@@ -326,6 +542,15 @@
     mode = "clock";
     session++;
     u.saver.classList.remove("music", "closing", "swapping");
+    sceneSequence = makeSceneSequence();
+    sceneIndex = 0;
+    showSceneSlide();
+    clearInterval(sceneTimer);
+    sceneTimer = setInterval(() => {
+      if (!saverOn || mode !== "clock") return;
+      sceneIndex = (sceneIndex + 1) % sceneSequence.length;
+      showSceneSlide();
+    }, SCENE_DURATION);
     signal({ saver: true });
     startedAt = performance.now();
     u.saver.classList.remove("leaving");
@@ -333,6 +558,9 @@
     dots = [];  // dots drift in from all over the screen
     shown = "";
     refreshSaver();
+    refreshWeather();
+    clearInterval(weatherTimer);
+    weatherTimer = setInterval(refreshWeather, 20 * 60 * 1000);
     metaTimer = setInterval(refreshSaver, 2000);  // track changes, clock
     rafId = requestAnimationFrame(draw);
     requestAnimationFrame(() => u.saver.classList.add("on"));
@@ -345,6 +573,8 @@
     remoteMusic = null;
     signal({ saver: false });
     clearInterval(metaTimer);
+    clearInterval(weatherTimer);
+    clearInterval(sceneTimer);
     u.saver.classList.add("leaving");
     u.saver.classList.remove("on");
     setTimeout(() => {
@@ -353,6 +583,55 @@
       rafId = 0;
       gpuRelease();
     }, 800);
+  }
+
+  const weatherKind = (code) => {
+    if (code === 0) return ["☀️", "Clear"];
+    if (code === 1) return ["🌤️", "Mostly clear"];
+    if (code === 2) return ["⛅", "Partly cloudy"];
+    if (code === 3) return ["☁️", "Cloudy"];
+    if ([45, 48].includes(code)) return ["🌫️", "Fog"];
+    if ([51, 53, 55, 56, 57].includes(code)) return ["🌦️", "Drizzle"];
+    if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return ["🌧️", "Rain"];
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return ["❄️", "Snow"];
+    if ([95, 96, 99].includes(code)) return ["⛈️", "Thunderstorm"];
+    return ["🌡️", "Conditions"];
+  };
+  const weatherFamily = (code) => {
+    if (code === 0 || code === 1) return "clear";
+    if ([45, 48].includes(code)) return "fog";
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "rain";
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return "snow";
+    if ([95, 96, 99].includes(code)) return "storm";
+    return "clouds";
+  };
+  async function refreshWeather() {
+    if (saverOn) signal({ weather: true });
+  }
+  function paintWeather(data) {
+    if (!saverOn || !ui) return;
+    if (!data) { ui.weather.hidden = true; return; }
+    try {
+      const u = ui;
+      u.weather.dataset.kind = weatherFamily(data.code);
+      u.weatherPlace.textContent = data.place || "Local forecast";
+      u.weatherNow.replaceChildren();
+      const [emoji, description] = weatherKind(data.code);
+      const icon = el("span", "weather-icon", u.weatherNow); icon.textContent = emoji;
+      const temperature = el("span", "weather-temp", u.weatherNow); temperature.textContent = `${data.temperature}°`;
+      const copy = el("span", "weather-copy", u.weatherNow); copy.textContent = description;
+      const feels = el("small", "weather-feels", copy); feels.textContent = `Feels like ${data.feels_like}°`;
+      u.weatherDays.replaceChildren();
+      for (const day of data.days || []) {
+        const item = el("div", "weather-day", u.weatherDays);
+        const date = new Date(`${day.date}T12:00:00`);
+        const label = el("span", "", item); label.textContent = date.toLocaleDateString([], { weekday: "short" });
+        const glyph = el("i", "", item); glyph.textContent = weatherKind(day.code)[0];
+        const high = el("b", "", item); high.textContent = `${day.high}°`;
+        const low = el("span", "", item); low.textContent = `${day.low}°`;
+      }
+      u.weather.hidden = false;
+    } catch { u.weather.hidden = true; }
   }
 
   let artShown = "";
@@ -810,7 +1089,7 @@
   let gpu = null, dirty = true, moveUntil = 0, timeBase = 0, checkAt = 0;
 
   function gpuSetup(canvas) {
-    const gl = canvas.getContext("webgl", { alpha: false, antialias: false, depth: false, stencil: false,
+    const gl = canvas.getContext("webgl", { alpha: true, antialias: false, depth: false, stencil: false,
                                              preserveDrawingBuffer: false, powerPreference: "low-power" });
     if (!gl) return null;
     const shader = (type, src) => {
@@ -834,7 +1113,7 @@
     });
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0, 0, 0, 0);
     const u = {};
     for (const name of ["uView", "uNow", "uHue", "uScale", "uField", "uShimmer"]) u[name] = gl.getUniformLocation(prog, name);
     // The GPU can drop the context (e.g. its process restarted): start again on a new canvas.
@@ -925,6 +1204,22 @@
   window.__tvbox = {
     configure(next) {
       Object.assign(cfg, next);
+      if (next.saverScene) {
+        if (saverOn) {
+          sceneSequence = makeSceneSequence();
+          sceneIndex = 0;
+          showSceneSlide();
+          clearInterval(sceneTimer);
+          sceneTimer = setInterval(() => {
+            if (!saverOn || mode !== "clock") return;
+            sceneIndex = (sceneIndex + 1) % sceneSequence.length;
+            showSceneSlide();
+          }, SCENE_DURATION);
+        } else if (ui) {
+          const scenes = ["aurora", "fireplace", "aquarium"];
+          ui.scene.className = `scene ${scenes.includes(next.saverScene) ? next.saverScene : "aurora"}`;
+        }
+      }
       lastInput = Date.now();
     },
     osd(msg) {
@@ -952,9 +1247,11 @@
       remoteMusic = m && m.title ? m : null;
       if (saverOn) refreshSaver();
     },
+    weather(data) { paintWeather(data); },
     saver(on) {  // the remote's Screensaver button (home screen only)
       if (on && !saverOn && onHome()) startSaver();
       if (!on && saverOn) stopSaver();
     },
   };
+  ensure();  // make the corner touch target available immediately on every TV page
 })();

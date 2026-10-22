@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import shutil
 import signal
@@ -228,6 +229,9 @@ class System:
     async def wifi_status(self) -> dict:
         return await self.network_helper("wifi-status")
 
+    async def wifi_saved(self) -> list[dict]:
+        return (await self.network_helper("wifi-saved")).get("networks", [])
+
     async def wifi_scan(self) -> list[dict]:
         return (await self.network_helper("wifi-scan")).get("networks", [])
 
@@ -237,6 +241,19 @@ class System:
         if not isinstance(password, str) or len(password) > 63 or "\0" in password:
             raise ValueError("Wi-Fi password is too long")
         return (await self.network_helper("wifi-connect", ssid=ssid, password=password)).get("message", "Connected")
+
+    async def wifi_connect_saved(self, ssid: str) -> str:
+        if not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32 or "\0" in ssid:
+            raise ValueError("Choose a valid Wi-Fi network")
+        return (await self.network_helper("wifi-connect-saved", ssid=ssid)).get("message", "Connected")
+
+    async def wifi_disconnect(self) -> str:
+        return (await self.network_helper("wifi-disconnect")).get("message", "Disconnected")
+
+    async def wifi_forget(self, ssid: str) -> str:
+        if not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32 or "\0" in ssid:
+            raise ValueError("Choose a valid Wi-Fi network")
+        return (await self.network_helper("wifi-forget", ssid=ssid)).get("message", "Forgot network")
 
     async def bluetooth_devices(self, scan: bool = False) -> list[dict]:
         action = "bluetooth-scan" if scan else "bluetooth-devices"
@@ -250,4 +267,53 @@ class System:
     async def bluetooth_connect(self, address: str) -> str:
         if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
             raise ValueError("Choose a Bluetooth device from the scan list")
-        return (await self.network_helper("bluetooth-connect", address=address.upper())).get("message", "Connected")
+        address = address.upper()
+        message = (await self.network_helper("bluetooth-connect", address=address)).get("message", "Connected")
+        try:
+            path = Path.home() / ".local/state/tvbox/last-bluetooth"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(address + "\n")
+        except OSError as exc:
+            log.warning("could not save last Bluetooth device: %s", exc)
+        return message
+
+    async def auto_connect_last_bluetooth(self) -> None:
+        """On boot, retry the last user-connected Bluetooth device while it is available."""
+        path = Path.home() / ".local/state/tvbox/last-bluetooth"
+        try:
+            address = path.read_text().strip().upper()
+        except OSError:
+            return
+        if not re.fullmatch(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}", address):
+            log.warning("ignoring invalid saved Bluetooth address")
+            return
+        await asyncio.sleep(8)  # let bluetoothd and the user's PipeWire session start
+        for attempt in range(3):
+            try:
+                await self.network_helper("bluetooth-connect", address=address)
+                log.info("reconnected last Bluetooth device %s", address)
+                return
+            except RuntimeError as exc:
+                log.info("last Bluetooth device %s is not available yet: %s", address, exc)
+                if attempt < 2:
+                    await asyncio.sleep(10)
+
+    async def bluetooth_disconnect(self, address: str) -> str:
+        if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+            raise ValueError("Choose a Bluetooth device from the list")
+        return (await self.network_helper("bluetooth-disconnect", address=address.upper())).get("message", "Disconnected")
+
+    async def bluetooth_forget(self, address: str) -> str:
+        if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+            raise ValueError("Choose a Bluetooth device from the list")
+        address = address.upper()
+        message = (await self.network_helper("bluetooth-forget", address=address)).get("message", "Forgot device")
+        path = Path.home() / ".local/state/tvbox/last-bluetooth"
+        try:
+            if path.read_text().strip().upper() == address:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            log.warning("could not clear forgotten Bluetooth device: %s", exc)
+        return message

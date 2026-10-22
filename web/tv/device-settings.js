@@ -7,7 +7,7 @@
   const modal = $("device-settings");
   const content = $("settings-content");
   const tabs = [...document.querySelectorAll(".settings-tab")];
-  const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], devices: [],
+  const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], savedNetworks: [], devices: [],
     connected: "", message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0 };
   const alphabet = [..."abcdefghijklmnopqrstuvwxyz0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"];
 
@@ -81,19 +81,29 @@
   function renderWifi() {
     const summary = document.createElement("p");
     summary.className = "settings-summary";
-    summary.textContent = s.connected ? `Connected to ${s.connected}` : "Not connected to Wi-Fi";
+    summary.textContent = s.connected ? `Connected to ${s.connected} · Saved networks reconnect automatically` : "Saved networks reconnect automatically at startup";
     const actions = document.createElement("div");
     actions.className = "settings-actions";
     actions.append(btn("Scan for networks", scanWifi));
     content.append(summary, actions);
     const list = document.createElement("div");
     list.className = "settings-list";
-    if (s.networks.length) {
-      s.networks.forEach((network) => list.append(row(
-        network.ssid,
-        `${network.active ? "Connected · " : ""}${network.signal}% · ${network.security || "Open network"}`,
-        () => chooseWifi(network), network.active,
-      )));
+    const merged = new Map(s.savedNetworks.map((n) => [n.ssid, n]));
+    for (const network of s.networks) merged.set(network.ssid, { ...merged.get(network.ssid), ...network, saved: network.saved || merged.has(network.ssid) });
+    if (merged.size) {
+      merged.forEach((network) => {
+        const item = document.createElement("div");
+        item.className = "settings-row";
+        const info = document.createElement("span");
+        info.textContent = network.ssid;
+        const detail = document.createElement("small");
+        detail.textContent = `${network.active ? "Connected · " : ""}${network.saved ? "Saved" : `${network.signal}% · ${network.security || "Open network"}`}`;
+        info.append(detail);
+        item.append(info);
+        item.append(network.active ? btn("Disconnect", () => wifiAction(network, "disconnect")) : btn("Connect", () => chooseWifi(network)));
+        if (network.saved) item.append(btn("Forget", () => wifiAction(network, "forget")));
+        list.append(item);
+      });
     } else {
       const empty = document.createElement("p");
       empty.className = "settings-summary";
@@ -106,17 +116,26 @@
   function renderBluetooth() {
     const summary = document.createElement("p");
     summary.className = "settings-summary";
-    summary.textContent = "Put your keyboard or speaker in pairing mode, then scan.";
+    summary.textContent = "Paired devices stay saved. The last connected device is retried at startup. Put a device in pairing mode, then scan.";
     const actions = document.createElement("div");
     actions.className = "settings-actions";
     actions.append(btn("Scan for devices", scanBluetooth));
     content.append(summary, actions);
     const list = document.createElement("div");
     list.className = "settings-list";
-    s.devices.forEach((device) => list.append(row(
-      device.name, `${device.address} · ${device.connected ? "Connected" : device.paired ? "Paired" : "Available"}`,
-      () => device.paired ? connectBluetooth(device) : pairBluetooth(device), device.connected,
-    )));
+    s.devices.forEach((device) => {
+      const item = document.createElement("div");
+      item.className = "settings-row";
+      const info = document.createElement("span");
+      info.textContent = device.name;
+      const detail = document.createElement("small");
+      detail.textContent = `${device.address} · ${device.connected ? "Connected" : device.paired ? "Paired" : "Available"}`;
+      info.append(detail);
+      item.append(info, btn(device.connected ? "Disconnect" : device.paired ? "Connect" : "Pair",
+        () => device.connected ? bluetoothAction(device, "disconnect") : device.paired ? connectBluetooth(device) : pairBluetooth(device)));
+      if (device.paired) item.append(btn("Forget", () => bluetoothAction(device, "forget")));
+      list.append(item);
+    });
     if (!s.devices.length) {
       const empty = document.createElement("p");
       empty.className = "settings-summary";
@@ -168,6 +187,7 @@
 
   function chooseWifi(network) {
     if (network.active) return;
+    if (network.saved) return wifiAction(network, "connect-saved");
     if (network.security) {
       s.passwordSsid = network.ssid;
       s.password = "";
@@ -198,6 +218,22 @@
       s.message = `Connected to ${ssid}.`;
       const data = await request("/api/network/status");
       s.connected = data.wifi?.connected || ssid;
+      s.savedNetworks = data.saved_wifi || s.savedNetworks;
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
+    render();
+  }
+
+  async function wifiAction(network, action) {
+    s.busy = true;
+    setMessage(`${action === "connect-saved" ? "Connecting to" : action === "disconnect" ? "Disconnecting from" : "Forgetting"} ${network.ssid}…`);
+    try {
+      const path = action === "connect-saved" ? "/api/network/wifi/connect-saved" : `/api/network/wifi/${action}`;
+      await request(path, { ssid: network.ssid });
+      const data = await request("/api/network/status");
+      s.connected = data.wifi?.connected || "";
+      s.savedNetworks = data.saved_wifi || [];
+      s.message = `${network.ssid} ${action === "forget" ? "forgotten" : action === "disconnect" ? "disconnected" : "connected"}.`;
     } catch (e) { s.message = e.message; }
     s.busy = false;
     render();
@@ -241,10 +277,23 @@
     render();
   }
 
+  async function bluetoothAction(device, action) {
+    s.busy = true;
+    setMessage(`${action === "disconnect" ? "Disconnecting from" : "Forgetting"} ${device.name}…`);
+    try {
+      await request(`/api/network/bluetooth/${action}`, { address: device.address });
+      s.devices = (await request("/api/network/status")).bluetooth || [];
+      s.message = `${device.name} ${action === "forget" ? "forgotten" : "disconnected"}.`;
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
+    render();
+  }
+
   async function loadStatus() {
     try {
       const data = await request("/api/network/status");
       s.connected = data.wifi?.connected || "";
+      s.savedNetworks = data.saved_wifi || [];
       s.devices = data.bluetooth || [];
       if (data.bluetooth_error) s.message = data.bluetooth_error;
     } catch (e) { s.message = e.message; }

@@ -144,6 +144,8 @@ class Browser:
         # The page reports the screensaver going on/off through a private binding.
         self.saver_on = False
         self.on_saver: Callable[[bool], Awaitable[None] | None] | None = None
+        self.on_weather: Callable[[], Awaitable[None] | None] | None = None
+        self.on_overlay_volume: Callable[[str], Awaitable[None]] | None = None
         self._music_sent = ""
         self.resume_saver = False  # put the screensaver straight back up after attaching
 
@@ -416,6 +418,22 @@ class Browser:
                 return
             if isinstance(msg, dict) and isinstance(msg.get("saver"), bool):
                 self._set_saver(msg["saver"])
+            elif isinstance(msg, dict) and msg.get("weather") is True:
+                if self.on_weather:
+                    result = self.on_weather()
+                    if asyncio.iscoroutine(result):
+                        self.spawn(result)
+            elif isinstance(msg, dict) and isinstance(msg.get("nav"), str) and msg["nav"] in {"up", "down", "left", "right", "ok", "back", "home"}:
+                self.spawn(self._overlay_navigation(msg["nav"]))
+            elif isinstance(msg, dict) and isinstance(msg.get("nav"), str) and msg["nav"] in {"vol_up", "vol_down"}:
+                if self.on_overlay_volume:
+                    self.spawn(self.on_overlay_volume("up" if msg["nav"] == "vol_up" else "down"))
+            elif isinstance(msg, dict) and isinstance(msg.get("text"), str) and len(msg["text"]) <= 8:
+                self.spawn(self.type_text(msg["text"]))
+            elif isinstance(msg, dict) and msg.get("keyboard") == "backspace":
+                self.spawn(self.key("backspace"))
+            elif isinstance(msg, dict) and msg.get("keyboard") == "enter":
+                self.spawn(self.key("enter"))
         elif method == "Page.screencastFrame" and session == self._session and self.on_frame:
             self.on_frame(params)
         elif method == "Inspector.targetCrashed" and session == self._session:
@@ -433,6 +451,15 @@ class Browser:
             self.spawn(self.send("Page.navigate", {"url": url}))
 
     # ---- commands --------------------------------------------------------
+
+    async def _overlay_navigation(self, action: str) -> None:
+        """Handle the touch overlay's deliberately small navigation command set."""
+        if action == "home":
+            await self.home()
+        elif action == "ok":
+            await self.key("enter")
+        else:
+            await self.key(action)
 
     def current_service(self) -> Service | None:
         sid = self.state.get("service_id")
@@ -568,6 +595,10 @@ class Browser:
             return
         await self.send("Runtime.evaluate", {"expression": f"window.__tvbox && window.__tvbox.music({payload})"}, timeout=5)
         self._music_sent = payload
+
+    async def weather(self, data: dict | None) -> None:
+        payload = json.dumps(data)
+        await self.send("Runtime.evaluate", {"expression": f"window.__tvbox && window.__tvbox.weather({payload})"}, timeout=5)
 
     async def osd(self, message: dict) -> None:
         expr = f"window.__tvbox && window.__tvbox.osd({json.dumps(message)})"

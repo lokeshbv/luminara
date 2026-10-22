@@ -241,6 +241,10 @@ dialog.sheet[open] { animation: slide-up .3s cubic-bezier(.2, .9, .3, 1); }
 .sheet-body .pill.small { flex: none; }
 
 .list { display: flex; flex-direction: column; gap: 4px; }
+.network-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 50px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: left; }
+.network-row > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 650; }
+.network-row small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; margin-top: 3px; }
+.network-row .pill { flex: none; min-height: 36px; padding: 0 12px; }
 .switch-row { display: flex; align-items: center; gap: 12px; min-height: 44px; font-weight: 600; }
 .switch-row > span:not(.app-icon) { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .switch-row small { font-size: 12px; font-weight: 400; color: var(--muted); line-height: 1.35; }

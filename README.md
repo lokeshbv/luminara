@@ -39,7 +39,7 @@ You only install the OS and git by hand. `install.sh` installs everything else:
 | Browser | `chromium` | The only browser with Widevine on the Pi |
 | DRM | `libwidevinecdm0` | Netflix / Prime / Hotstar playback |
 | Display | `cage` | Runs Chromium full screen with no desktop |
-| Audio | `pipewire` `pipewire-pulse` `wireplumber` | HDMI sound and the volume buttons (`wpctl`) |
+| Audio | `pipewire` `pipewire-pulse` `wireplumber` `libspa-0.2-bluetooth` | HDMI and Bluetooth sound, and the volume buttons (`wpctl`) |
 | Python | `python3-venv`, then from PyPI: `aiohttp==3.14.4`, `segno==1.6.6` | The controller, and the QR code |
 | Network | `network-manager` `bluez` `avahi-daemon` | Wi-Fi and Bluetooth settings, and `<hostname>.local` |
 | Fonts | `fonts-noto-core` `fonts-noto-color-emoji` | Hindi and other scripts, and emoji, on streaming pages |
@@ -151,13 +151,15 @@ The installed version is recorded separately from the downloaded one, in `.git/t
 
 - **TV launcher:**
   - A greeting and clock.
-  - A row of service tiles showing each service's own logo. The background glow follows the focused tile.
+  - A row of service tiles showing each service's logo or icon. The Browser tile opens Google as its start page. The background glow follows the focused tile.
   - "Jump back in" focuses the service you opened last.
   - A short opening animation plays when a service starts.
   - A count of connected remotes.
   - An update banner when a new version is on GitHub.
 - **Screensaver** (after 5 minutes by default; change it in Settings):
   - It only runs on the home screen, never inside an app (the remote's Screensaver button too).
+  - It rotates every 30 seconds through a full-screen local forecast, Aurora, Fireplace and Aquarium, one view at a time. Settings → Screensaver → **Start with** chooses which ambient scene appears first.
+  - The forecast shows current conditions and a three-day outlook. The box estimates its location from its public IP with [ipwho.is](https://ipwho.is/), then requests forecast data from [Open-Meteo](https://open-meteo.com/). Location is approximate; weather needs an internet connection.
   - The time and date are drawn in colour-shifting particles. When the minute changes they glide into the new digits; none appear or vanish.
   - It's drawn by the GPU (WebGL): 60 frames a second while the particles move and 30 while they only shimmer (a fraction of a pixel per frame, so it looks the same), at under half of one CPU core. The GPU memory it used is handed back when it closes.
   - The **Screensaver** button on the remote goes to the home screen if needed and starts it right away (the turntable if Spotify is playing).
@@ -207,15 +209,19 @@ The installed version is recorded separately from the downloaded one, in `.git/t
 | Section | What you can change |
 |---|---|
 | Apps | Show or hide each app on the TV and remote |
-| Screensaver | Off / 1–30 minutes, show the time, preview it on the TV |
+| Screensaver | Off / 1–30 minutes, choose the first ambient scene, show the time, preview the rotating screensaver on the TV |
 | Spotify | Connect your account, disconnect |
 | Sound | Volume when the box starts (or leave it as it was) |
 | Performance | Smooth video (H.264), Lite browser (applies after **Restart TV display**) |
+| Wi-Fi | Scan and connect to networks; changing networks may disconnect the phone until it joins the same Wi-Fi |
+| Bluetooth | Scan, pair and connect speakers and keyboards |
 | Updates | Check automatically, Check now, Install |
 | Phones | The PIN for pairing another phone; **Forget all phones** (new PIN) |
 | About | Name, address, version, memory use, temperature, uptime; **Restart TV display** |
 
 Settings are saved on the box (`~/.local/state/tvbox/settings.json`) and apply to every phone straight away.
+
+The TV remote overlay also opens by touching the lower-right corner of the TV. Its translucent navigation pad sends D-pad, OK, Back and Home commands without pausing the current video.
 
 ## Wi-Fi and Bluetooth on the TV
 
@@ -235,6 +241,10 @@ Logos and icons aren't stored in this repo. The Pi downloads them from Wikimedia
 | Touchpad tab | Drag to move a cursor on the TV, tap to click, two fingers to scroll |
 | Keyboard tab | Types into whatever is focused on the TV |
 | Laptop keyboard | Arrows, Enter, Esc, Backspace (Back) and Space (play/pause) are forwarded |
+
+### Install the remote on Android
+
+The TV pairing QR uses `http://<hostname>.local:8080/remote`, with the current IP shown below it as a fallback. For Android's Chrome app install, open Settings in the remote, download the Pi's certificate, and install it on Android under **Security → Install a certificate → CA certificate** (menu names vary by phone). Then open the secure remote link shown there and choose **Install app** or **⋮ → Install app** in Chrome. The manifest includes Android-sized icons and opens the remote in a standalone window. The Pi's CA private key is deleted after certificate creation, so it can only vouch for this box.
 
 ## Spotify on the screensaver
 

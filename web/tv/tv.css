@@ -26,10 +26,39 @@ body {
 @keyframes boot { from { opacity: 0; } }
 .muted { color: var(--muted); }
 
-/* ---- ambient background: the focused service's colour glowing in from two corners ----
-   Drawn small on a canvas (tv.js) and stretched: soft glows look the same, and the GPU
-   has a single opaque layer to put on screen. */
-.ambient { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; }
+/* ---- breathing amber corner bleed ---- */
+.ambient { position:fixed; inset:0; width:100%; height:100%; z-index:-1; }
+.amber-wash {
+  --wash-a-x: 0%; --wash-a-y: 0%; --wash-a-w: 58vw; --wash-a-h: 72vh; --wash-a-alpha: .34;
+  --wash-b-x: 100%; --wash-b-y: 100%; --wash-b-w: 52vw; --wash-b-h: 66vh; --wash-b-alpha: .27;
+  position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+  background:
+    radial-gradient(ellipse var(--wash-a-w) var(--wash-a-h) at var(--wash-a-x) var(--wash-a-y), rgba(255, 174, 65, var(--wash-a-alpha)) 0%, rgba(244, 125, 26, .08) 36%, transparent 76%),
+    radial-gradient(ellipse var(--wash-b-w) var(--wash-b-h) at var(--wash-b-x) var(--wash-b-y), rgba(255, 194, 91, var(--wash-b-alpha)) 0%, rgba(255, 139, 37, .06) 38%, transparent 78%);
+  mix-blend-mode:normal;
+}
+.top, main, .bottom { position:relative; z-index:1; }
+.ambient-rails { --rail-color:var(--ambient-rail,var(--accent)); position:fixed; inset:0; z-index:5; pointer-events:none; overflow:hidden; opacity:.92; }
+.rail { position:absolute; overflow:hidden; background:color-mix(in srgb,var(--rail-color) 36%,transparent); box-shadow:0 0 .8vw color-mix(in srgb,var(--rail-color) 62%,transparent); }
+.rail::after { content:""; position:absolute; border-radius:50%; filter:drop-shadow(0 0 1.4vw var(--rail-color)) drop-shadow(0 0 .35vw #fff1d1); background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--rail-color) 70%,white) 34%,#fff 50%,color-mix(in srgb,var(--rail-color) 70%,white) 66%,transparent); }
+.rail.top,.rail.bottom { left:0; width:100%; height:4px; }
+.rail.top { top:0; }
+.rail.bottom { bottom:0; }
+.rail.top::after,.rail.bottom::after { top:0; bottom:0; width:30%; }
+.rail.top::after { animation:rail-run-x 8s linear infinite,rail-wave-x 1.2s ease-in-out infinite; }
+.rail.bottom::after { animation:rail-run-x 8s linear -4s infinite reverse,rail-wave-x 1.2s ease-in-out -.6s infinite; }
+.rail.left,.rail.right { top:0; height:100%; width:4px; }
+.rail.left { left:0; }
+.rail.right { right:0; }
+.rail.left::after,.rail.right::after { left:0; right:0; height:30%; background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--rail-color) 70%,white) 34%,#fff 50%,color-mix(in srgb,var(--rail-color) 70%,white) 66%,transparent); }
+.rail.right::after { animation:rail-run-y 8s linear -2s infinite,rail-wave-y 1.2s ease-in-out -.3s infinite; }
+.rail.left::after { animation:rail-run-y 8s linear -6s infinite reverse,rail-wave-y 1.2s ease-in-out -.9s infinite; }
+@keyframes rail-run-x { from { transform:translateX(-115%); } to { transform:translateX(450%); } }
+@keyframes rail-run-y { from { transform:translateY(-115%); } to { transform:translateY(450%); } }
+@keyframes rail-wave-x { 0%,100% { translate:0 -1px; scale:1 .75; opacity:.72; } 50% { translate:0 1px; scale:1 1.35; opacity:1; } }
+@keyframes rail-wave-y { 0%,100% { translate:-1px 0; scale:.75 1; opacity:.72; } 50% { translate:1px 0; scale:1.35 1; opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .ambient-rails { opacity:.45; } .rail::after { display:none; } }
+@media (prefers-reduced-motion: reduce) { .amber-wash { --wash-a-alpha:.34; --wash-b-alpha:.27; } }
 
 /* ---- header ---- */
 .top { display: flex; justify-content: space-between; align-items: center; }
@@ -116,6 +145,7 @@ kbd {
 .pair img { width: 7.5vw; height: 7.5vw; border-radius: .6vw; background: #fff; transition: width .4s, height .4s; }
 .pair-title { font-size: 1.2vw; font-weight: 650; margin-bottom: .2vw; }
 .pair .muted { font-size: .95vw; }
+.pair .fallback { margin-top: .2vw; font-size: .75vw; }
 .pair .pin { margin-top: .4vw; font-size: .95vw; color: var(--muted); }
 .pair .pin strong { color: var(--fg); font-size: 1.5vw; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
 .pair.compact img { width: 4.6vw; height: 4.6vw; }
