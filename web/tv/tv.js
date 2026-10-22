@@ -38,13 +38,13 @@ function glyph(service) {
 function render() {
   const hidden = new Set(state.settings?.hidden_apps || []);
   services = allServices.filter((s) => !hidden.has(s.id));
-  if (!services.some((s) => s.id === selected)) {
+  if (selected !== "@settings" && !services.some((s) => s.id === selected)) {
     // The focused app was hidden: move focus and tell the remotes.
     selected = services[0]?.id || "";
     if (selected && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "select", id: selected }));
   }
-  $("tiles").style.setProperty("--cols", String(Math.min(Math.max(services.length, 1), 5)));
-  $("tiles").replaceChildren(...services.map((s) => {
+  $("tiles").style.setProperty("--cols", String(Math.min(Math.max(services.length + 1, 1), 5)));
+  const tiles = services.map((s) => {
     const li = document.createElement("li");
     li.className = "tile";
     li.setAttribute("role", "option");
@@ -61,7 +61,17 @@ function render() {
     // The remote's touchpad cursor focuses tiles just like the D-pad does.
     li.addEventListener("mouseenter", () => { focusArea = "tiles"; paintUpdate(); select(s.id); });
     return li;
-  }));
+  });
+  const settings = document.createElement("li");
+  settings.className = "tile settings-tile";
+  settings.setAttribute("role", "option");
+  settings.setAttribute("aria-label", "Wi-Fi and Bluetooth settings");
+  settings.dataset.id = "@settings";
+  settings.innerHTML = '<span class="shade"></span><span class="settings-gear" aria-hidden="true">⚙</span><span class="settings-label">Settings</span><span class="sweep"></span>';
+  settings.addEventListener("click", () => { selected = "@settings"; focusArea = "tiles"; paint(true); window.tvDeviceSettings?.open(); });
+  settings.addEventListener("mouseenter", () => { focusArea = "tiles"; paintUpdate(); select("@settings"); });
+  tiles.push(settings);
+  $("tiles").replaceChildren(...tiles);
   paint(true);
 }
 
@@ -161,6 +171,15 @@ function paint(quiet = false) {
     if (li.getAttribute("aria-selected") !== on) li.setAttribute("aria-selected", on);
   }
   const s = services.find((x) => x.id === selected);
+  if (selected === "@settings") {
+    const neutral = "#7c5cff";
+    if (neutral !== glowColor) { glowTo(neutral); glowColor = neutral; }
+    $("hero-eyebrow").style.color = neutral;
+    setText($("hero-eyebrow"), "Device setup");
+    setText($("hero-title"), "Wi-Fi & Bluetooth");
+    setText($("hero-sub"), "Open settings on this TV");
+    return;
+  }
   if (!s) return;
 
   // Fade the ambient glow to the new colour.
@@ -184,23 +203,25 @@ function paint(quiet = false) {
 
 let selectedHere = 0;  // when a press here last moved the focus
 function select(id, announce = true) {
-  if (!services.some((s) => s.id === id) || (id === selected && !announce)) return;
+  if ((id !== "@settings" && !services.some((s) => s.id === id)) || (id === selected && !announce)) return;
   const changed = id !== selected;
   selected = id;
   paint(!changed);
   if (announce) {
     selectedHere = performance.now();
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "select", id }));
+    if (id !== "@settings" && ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: "select", id }));
   }
 }
 
 function move(step) {
-  const i = services.findIndex((s) => s.id === selected);
-  const next = services[i + step];
-  if (next) select(next.id);
+  const ids = [...services.map((s) => s.id), "@settings"];
+  const i = ids.indexOf(selected);
+  const next = ids[i + step];
+  if (next) select(next);
 }
 
 function launch() {
+  if (selected === "@settings") { window.tvDeviceSettings?.open(); return; }
   if (selected) fetch(`/api/launch/${encodeURIComponent(selected)}`, { method: "POST" }).catch(() => {});
 }
 
@@ -262,6 +283,7 @@ $("update-later").addEventListener("click", () => updateAction("later"));
 // ---- input -------------------------------------------------------------------
 
 addEventListener("keydown", (e) => {
+  if (window.tvDeviceSettings?.handleKey(e)) return;
   const k = e.key;
   if (focusArea === "update") {
     if (k === "ArrowLeft" || k === "ArrowRight") updateBtn = k === "ArrowLeft" ? 0 : 1;
@@ -339,7 +361,7 @@ function connect() {
     if (JSON.stringify(msg.settings?.hidden_apps) !== JSON.stringify(before.settings?.hidden_apps)) render();
     // Pressing quickly, the server's echo of an earlier press can arrive after a later one:
     // only follow a selection from elsewhere (a phone) when nothing was pressed here just now.
-    if (msg.selected !== selected && performance.now() - selectedHere > 1000) select(msg.selected, false);
+    if (selected !== "@settings" && msg.selected !== selected && performance.now() - selectedHere > 1000) select(msg.selected, false);
     else paint(true);
     paintUpdate();
   };

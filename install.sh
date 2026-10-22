@@ -31,7 +31,7 @@ as_user test -r "$APP_DIR/server/main.py" || { echo "$TV_USER can't read $APP_DI
 say "Installing packages"
 apt-get update
 apt-get install -y --no-install-recommends \
-  git curl python3-venv iw \
+  git curl python3-venv iw network-manager bluez \
   cage \
   pipewire pipewire-pulse wireplumber \
   libwidevinecdm0 \
@@ -52,10 +52,11 @@ say "Audio, power and login for $TV_USER"
 loginctl enable-linger "$TV_USER"
 # Exactly what the remote's buttons and ./update.sh need, without a password.
 SUDOERS=/etc/sudoers.d/tvbox
+install -D -o root -g root -m 0755 "$APP_DIR/deploy/tvbox-network" /usr/local/libexec/tvbox-network
 cat > "$SUDOERS.tmp" <<EOF
 $TV_USER ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, \\
   /usr/bin/systemctl restart tvbox-server, /usr/bin/systemctl restart tvbox-kiosk, \\
-  /usr/bin/systemctl start --no-block tvbox-update.service
+  /usr/bin/systemctl start --no-block tvbox-update.service, /usr/local/libexec/tvbox-network
 EOF
 chmod 0440 "$SUDOERS.tmp"
 visudo -cf "$SUDOERS.tmp" >/dev/null && mv "$SUDOERS.tmp" "$SUDOERS"
@@ -74,6 +75,7 @@ done
 systemctl daemon-reload
 systemctl disable getty@tty1.service >/dev/null 2>&1 || true
 systemctl enable tvbox-server.service tvbox-kiosk.service
+systemctl enable --now bluetooth.service
 
 say "Swap"
 if swapon --show=NAME --noheadings | grep -q zram; then

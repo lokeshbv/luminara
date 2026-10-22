@@ -668,6 +668,71 @@ async def restart_display(request: web.Request):
     return ok()
 
 
+@routes.get("/api/network/status")
+async def network_status(request: web.Request):
+    hub = request.app[HUB]
+    wifi = await hub.system.wifi_status()
+    try:
+        bluetooth = await hub.system.bluetooth_devices()
+        bluetooth_error = ""
+    except RuntimeError as exc:
+        bluetooth, bluetooth_error = [], str(exc)
+    return web.json_response({"wifi": wifi, "bluetooth": bluetooth, "bluetooth_error": bluetooth_error})
+
+
+@routes.post("/api/network/wifi/scan")
+async def wifi_scan(request: web.Request):
+    try:
+        return ok(networks=await request.app[HUB].system.wifi_scan())
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+
+
+@routes.post("/api/network/wifi/connect")
+async def wifi_connect(request: web.Request):
+    data = await read_json(request)
+    try:
+        result = await request.app[HUB].system.wifi_connect(data.get("ssid"), data.get("password", ""))
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/bluetooth/scan")
+async def bluetooth_scan(request: web.Request):
+    try:
+        devices = await request.app[HUB].system.bluetooth_devices(scan=True)
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(devices=devices)
+
+
+@routes.post("/api/network/bluetooth/pair")
+async def bluetooth_pair(request: web.Request):
+    address = (await read_json(request)).get("address")
+    try:
+        result = await request.app[HUB].system.bluetooth_pair(address)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
+@routes.post("/api/network/bluetooth/connect")
+async def bluetooth_connect(request: web.Request):
+    address = (await read_json(request)).get("address")
+    try:
+        result = await request.app[HUB].system.bluetooth_connect(address)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(message=result)
+
+
 @routes.post("/api/saver/start")
 async def saver_start(request: web.Request):
     """The remote's Screensaver button (and the Settings preview). The screensaver only

@@ -41,7 +41,7 @@ You only install the OS and git by hand. `install.sh` installs everything else:
 | Display | `cage` | Runs Chromium full screen with no desktop |
 | Audio | `pipewire` `pipewire-pulse` `wireplumber` | HDMI sound and the volume buttons (`wpctl`) |
 | Python | `python3-venv`, then from PyPI: `aiohttp==3.14.4`, `segno==1.6.6` | The controller, and the QR code |
-| Network | `avahi-daemon` | Makes `<hostname>.local` work |
+| Network | `network-manager` `bluez` `avahi-daemon` | Wi-Fi and Bluetooth settings, and `<hostname>.local` |
 | Fonts | `fonts-noto-core` `fonts-noto-color-emoji` | Hindi and other scripts, and emoji, on streaming pages |
 | Tools | `git` `curl` | Updates, and the startup health check |
 | Memory | `systemd-zram-generator` (only if zram isn't already on) | Compressed swap; it helps Chromium on 2 GB |
@@ -216,6 +216,10 @@ The installed version is recorded separately from the downloaded one, in `.git/t
 | About | Name, address, version, memory use, temperature, uptime; **Restart TV display** |
 
 Settings are saved on the box (`~/.local/state/tvbox/settings.json`) and apply to every phone straight away.
+
+## Wi-Fi and Bluetooth on the TV
+
+Select the **Settings** tile at the end of the TV launcher with the D-pad, then choose Wi-Fi or Bluetooth. Wi-Fi scans nearby networks and includes an on-screen keyboard for passwords, so setup does not require a paired keyboard or a working phone remote. Bluetooth scans and pairs nearby keyboards, speakers and other devices. Keep a Bluetooth device in pairing mode while scanning. These controls run inside the Cage kiosk; they do not open a desktop.
 
 Logos and icons aren't stored in this repo. The Pi downloads them from Wikimedia Commons and the App Store, using the URLs in `services.json`, and caches them in `~/.local/state/tvbox/logos/`. Until a logo is available, the tile shows the service's letter instead.
 

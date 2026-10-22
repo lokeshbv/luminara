@@ -90,6 +90,9 @@ main { position: relative; display: flex; flex-direction: column; justify-conten
 .tile img { position: relative; max-width: 64%; max-height: 38%; object-fit: contain; }
 .tile img.white { filter: brightness(0) invert(1); }
 .tile .glyph { position: relative; font-size: 4.5vw; font-weight: 800; }
+.settings-tile { color: var(--fg); background: linear-gradient(145deg, #222536, #11131b); }
+.settings-gear { font-size: 4.6vw; line-height: 1; }
+.settings-label { position: absolute; bottom: 12%; font-size: 1.2vw; color: #d7d9e2; }
 .tile[aria-selected="true"] { transform: scale(1.09); z-index: 1; }
 .tile[aria-selected="true"]::before { opacity: 1; }
 .tile[aria-selected="true"] .shade { opacity: 0; }
@@ -155,4 +158,48 @@ kbd {
 .status {
   position: fixed; left: 50%; bottom: 3vh; transform: translateX(-50%); z-index: 30;
   background: rgba(0, 0, 0, .75); padding: .5vw 1.2vw; border-radius: 2vw; color: var(--muted);
+}
+
+/* ---- on-TV network settings ------------------------------------------------ */
+.device-settings {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  padding: 5vh 6vw; background: rgba(5, 6, 10, .96);
+}
+.settings-card {
+  width: min(86vw, 1150px); height: min(84vh, 820px); display: grid;
+  grid-template-rows: auto auto 1fr auto; gap: 2vh; padding: 3vh 3vw;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 1.4vw;
+  background: linear-gradient(145deg, rgba(29,32,45,.98), rgba(13,15,22,.98));
+  box-shadow: 0 2vw 8vw rgba(0,0,0,.55);
+}
+.settings-head { display: flex; justify-content: space-between; align-items: center; }
+.settings-head h2 { font-size: 2.5vw; }
+.settings-tabs { display: flex; gap: 1vw; border-bottom: 1px solid rgba(255,255,255,.14); }
+.settings-tab, .settings-row, .settings-action, .virtual-key {
+  color: var(--fg); font: 600 1.25vw var(--font); border: 1px solid rgba(255,255,255,.13);
+  border-radius: .7vw; background: rgba(255,255,255,.06); padding: 1vw 1.3vw;
+}
+.settings-tab.active { color: #fff; background: rgba(124,92,255,.35); }
+.settings-tab.focus, .settings-row.focus, .settings-action.focus, .virtual-key.focus, #settings-close.focus {
+  outline: .2vw solid #fff; outline-offset: .1vw; background-color: rgba(124,92,255,.38);
+}
+.settings-content { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1vh; }
+.settings-summary { font-size: 1.15vw; color: var(--muted); margin-bottom: .4vh; }
+.settings-list { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .7vh; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 2vw; text-align: left; width: 100%; }
+.settings-row small { color: var(--muted); font-size: .95vw; font-weight: 400; }
+.settings-row .connected { color: #71e3b1; }
+.settings-actions { display: flex; gap: .8vw; }
+.settings-action { padding: .9vw 1.2vw; }
+.settings-help { color: var(--muted); font-size: .95vw; }
+.password-wrap { display: flex; gap: .8vw; align-items: center; }
+.password-view { flex: 1; padding: .8vw 1vw; border-radius: .6vw; background: rgba(0,0,0,.32); font-size: 1.25vw; min-height: 3vw; }
+.virtual-keys { display: grid; grid-template-columns: repeat(10, 1fr); gap: .45vw; }
+.virtual-key { padding: .65vw .2vw; font-size: 1.05vw; }
+.settings-message { color: #c9cddd; font-size: 1vw; min-height: 1.5em; }
+@media (max-aspect-ratio: 4/3) {
+  .settings-card { width: 92vw; height: 90vh; }
+  .settings-head h2 { font-size: 4vw; }
+  .settings-tab, .settings-row, .settings-action { font-size: 2vw; }
+  .settings-summary, .settings-row small, .settings-help, .settings-message { font-size: 1.6vw; }
 }

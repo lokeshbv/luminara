@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -148,6 +149,23 @@ async def _run(*args: str, timeout: float = 5) -> str:
     return out.decode()
 
 
+async def _run_input(args: tuple[str, ...], text: str, timeout: float = 10) -> str:
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(text.encode()), timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"{args[0]} timed out")
+    result = out.decode(errors="replace")
+    if proc.returncode != 0:
+        raise RuntimeError(result.strip() or f"{args[0]} exited {proc.returncode}")
+    return result
+
+
 class System:
     def __init__(self) -> None:
         self.has_audio = shutil.which("wpctl") is not None
@@ -191,3 +209,45 @@ class System:
 
     async def restart_display(self) -> None:
         await _run("sudo", "-n", "systemctl", "restart", "tvbox-kiosk", timeout=15)
+
+    async def network_helper(self, action: str, **data) -> dict:
+        """Run the deliberately narrow, root-owned network helper."""
+        payload = json.dumps({"action": action, **data})
+        try:
+            output = await _run_input(("sudo", "-n", "/usr/local/libexec/tvbox-network"), payload, timeout=40)
+        except FileNotFoundError as exc:
+            raise RuntimeError("Network settings helper is unavailable; run install.sh again") from exc
+        try:
+            result = json.loads(output)
+        except ValueError as exc:
+            raise RuntimeError("Network helper returned an invalid response") from exc
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error", "Network operation failed"))
+        return result
+
+    async def wifi_status(self) -> dict:
+        return await self.network_helper("wifi-status")
+
+    async def wifi_scan(self) -> list[dict]:
+        return (await self.network_helper("wifi-scan")).get("networks", [])
+
+    async def wifi_connect(self, ssid: str, password: str) -> str:
+        if not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32 or "\0" in ssid:
+            raise ValueError("Choose a valid Wi-Fi network")
+        if not isinstance(password, str) or len(password) > 63 or "\0" in password:
+            raise ValueError("Wi-Fi password is too long")
+        return (await self.network_helper("wifi-connect", ssid=ssid, password=password)).get("message", "Connected")
+
+    async def bluetooth_devices(self, scan: bool = False) -> list[dict]:
+        action = "bluetooth-scan" if scan else "bluetooth-devices"
+        return (await self.network_helper(action)).get("devices", [])
+
+    async def bluetooth_pair(self, address: str) -> str:
+        if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+            raise ValueError("Choose a Bluetooth device from the scan list")
+        return (await self.network_helper("bluetooth-pair", address=address.upper())).get("message", "Paired")
+
+    async def bluetooth_connect(self, address: str) -> str:
+        if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+            raise ValueError("Choose a Bluetooth device from the scan list")
+        return (await self.network_helper("bluetooth-connect", address=address.upper())).get("message", "Connected")

@@ -64,8 +64,24 @@
     <p class="splash-note">Opening…</p>
   </div>
 
+  <section id="device-settings" class="device-settings" hidden aria-label="TV settings">
+    <div class="settings-card">
+      <header class="settings-head">
+        <div><p class="eyebrow">Luminara</p><h2>TV settings</h2></div>
+        <button id="settings-close" class="btn" type="button">Done <kbd>Esc</kbd></button>
+      </header>
+      <nav class="settings-tabs" aria-label="Settings sections">
+        <button class="settings-tab active" data-tab="wifi">Wi-Fi</button>
+        <button class="settings-tab" data-tab="bluetooth">Bluetooth</button>
+      </nav>
+      <div id="settings-content" class="settings-content"></div>
+      <p class="settings-help">Use ◀ ▶ ▲ ▼ and OK on your remote or keyboard</p>
+    </div>
+  </section>
+
 
   <p id="status" class="status" hidden>Reconnecting…</p>
   <script src="/tv/tv.js"></script>
+  <script src="/tv/device-settings.js"></script>
 </body>
 </html>

@@ -1,0 +1,143 @@
+#!/usr/bin/python3
+"""Narrow root helper for Luminara's local Wi-Fi and Bluetooth settings screen."""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import sys
+import time
+
+
+def run(*args: str, input_text: str = "", timeout: int = 15) -> str:
+    try:
+        result = subprocess.run(args, input=input_text, text=True, capture_output=True,
+                                timeout=timeout, check=False)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"{args[0]} unavailable or timed out") from exc
+    output = (result.stdout or "") + (result.stderr or "")
+    if result.returncode:
+        raise RuntimeError(output.strip() or f"{args[0]} failed")
+    return output.strip()
+
+
+def split_nmcli(line: str) -> list[str]:
+    fields, value, escaped = [], [], False
+    for char in line:
+        if escaped:
+            value.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append("".join(value))
+            value = []
+        else:
+            value.append(char)
+    if escaped:
+        value.append("\\")
+    fields.append("".join(value))
+    return fields
+
+
+def wifi_status() -> dict:
+    output = run("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device")
+    for line in output.splitlines():
+        fields = split_nmcli(line)
+        if len(fields) >= 4 and fields[1] == "wifi" and fields[2] == "connected":
+            return {"available": True, "connected": fields[3]}
+    return {"available": True, "connected": ""}
+
+
+def wifi_scan() -> list[dict]:
+    output = run("nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes", timeout=18)
+    networks, seen = [], set()
+    for line in output.splitlines():
+        fields = split_nmcli(line)
+        if len(fields) < 4:
+            continue
+        active, ssid, signal, security = fields[:4]
+        if not ssid or ssid in seen:
+            continue
+        seen.add(ssid)
+        networks.append({"ssid": ssid, "signal": int(signal) if signal.isdigit() else 0,
+                         "security": "" if security in ("", "--") else security, "active": active == "*"})
+    return sorted(networks, key=lambda n: (not n["active"], -n["signal"], n["ssid"].casefold()))
+
+
+def bluetooth_devices(scan: bool = False) -> list[dict]:
+    if scan:
+        proc = subprocess.Popen(("bluetoothctl", "--agent", "NoInputNoOutput", "--timeout", "12"),
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
+        assert proc.stdin
+        proc.stdin.write("power on\nscan on\n")
+        proc.stdin.flush()
+        time.sleep(8)
+        proc.stdin.write("scan off\ndevices\nquit\n")
+        proc.stdin.flush()
+        try:
+            output, _ = proc.communicate(timeout=6)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise RuntimeError("Bluetooth scan timed out")
+    else:
+        output = run("bluetoothctl", "devices", timeout=8)
+    paired_output = run("bluetoothctl", "devices", "Paired", timeout=8)
+    paired = {match.group(1).upper() for match in re.finditer(r"Device ([0-9A-Fa-f:]{17})", paired_output)}
+    connected_output = run("bluetoothctl", "devices", "Connected", timeout=8)
+    connected = {match.group(1).upper() for match in re.finditer(r"Device ([0-9A-Fa-f:]{17})", connected_output)}
+    devices = {}
+    for line in output.splitlines():
+        match = re.search(r"Device ([0-9A-Fa-f:]{17})\s+(.+)$", line)
+        if match:
+            address, name = match.groups()
+            address = address.upper()
+            devices[address] = {"address": address, "name": name.strip(), "paired": address in paired,
+                                "connected": address in connected}
+    return sorted(devices.values(), key=lambda d: (not d["paired"], d["name"].casefold()))
+
+
+def main() -> None:
+    try:
+        request = json.load(sys.stdin)
+        action = request.get("action")
+        if action == "wifi-status":
+            result = wifi_status()
+        elif action == "wifi-scan":
+            result = {"networks": wifi_scan()}
+        elif action == "wifi-connect":
+            ssid, password = request.get("ssid"), request.get("password", "")
+            if (not isinstance(ssid, str) or not ssid or ssid.startswith("-") or len(ssid.encode()) > 32
+                    or "\0" in ssid or not isinstance(password, str) or len(password) > 63 or "\0" in password):
+                raise ValueError("Choose a valid Wi-Fi network and password")
+            args = ("nmcli", "--ask", "--wait", "30", "device", "wifi", "connect", ssid) if password else (
+                "nmcli", "--wait", "30", "device", "wifi", "connect", ssid)
+            result = {"message": run(*args, input_text=password + "\n", timeout=35)}
+        elif action == "bluetooth-devices":
+            result = {"devices": bluetooth_devices()}
+        elif action == "bluetooth-scan":
+            result = {"devices": bluetooth_devices(scan=True)}
+        elif action == "bluetooth-pair":
+            address = request.get("address")
+            if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+                raise ValueError("Choose a Bluetooth device from the scan list")
+            result = {"message": run("bluetoothctl", "--agent", "DisplayOnly", "--timeout", "20",
+                                      input_text=f"agent DisplayOnly\ndefault-agent\npair {address.upper()}\n", timeout=25)}
+        elif action == "bluetooth-connect":
+            address = request.get("address")
+            if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):
+                raise ValueError("Choose a Bluetooth device from the scan list")
+            result = {"message": run("bluetoothctl", "connect", address.upper(), timeout=20)}
+        else:
+            raise ValueError("Unknown network action")
+        print(json.dumps({"ok": True, **result}))
+    except (ValueError, RuntimeError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
