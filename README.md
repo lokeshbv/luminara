@@ -215,7 +215,7 @@ The installed version is recorded separately from the downloaded one, in `.git/t
 | Apps | Show or hide each app on the TV and remote |
 | Screensaver | Off / 1–30 minutes, choose the first ambient scene, show the time, preview the rotating screensaver on the TV |
 | Spotify | Connect your account, disconnect |
-| Sound | Volume when the box starts (or leave it as it was) |
+| Sound | Volume when the box starts (or leave it as it was); choose the current TV audio output, including HDMI or a connected Bluetooth speaker |
 | Performance | Smooth video (H.264), Lite browser (applies after **Restart TV display**) |
 | Wi-Fi | Scan and connect to networks; changing networks may disconnect the phone until it joins the same Wi-Fi |
 | Bluetooth | Scan, pair and connect speakers and keyboards |
@@ -229,7 +229,7 @@ The TV remote overlay also opens by touching the lower-right corner of the TV. I
 
 ## Wi-Fi and Bluetooth on the TV
 
-Select the **Settings** tile at the end of the TV launcher with the D-pad, then choose Wi-Fi or Bluetooth. Wi-Fi scans nearby networks and includes an on-screen keyboard for passwords, so setup does not require a paired keyboard or a working phone remote. Bluetooth scans and pairs nearby keyboards, speakers and other devices. Keep a Bluetooth device in pairing mode while scanning. These controls run inside the Cage kiosk; they do not open a desktop.
+Select the **Settings** tile at the end of the TV launcher with the D-pad, then choose Wi-Fi, Bluetooth or Audio. Wi-Fi scans nearby networks and includes an on-screen keyboard for passwords, so setup does not require a paired keyboard or a working phone remote. Bluetooth scans and pairs nearby keyboards, speakers and other devices. Keep a Bluetooth device in pairing mode while scanning. **Audio** lists the available PipeWire outputs and sets the one used by the TV; connect a Bluetooth speaker first, then select it under Audio. The same output selector is available in the phone remote's **Settings → Sound**. These controls run inside the Cage kiosk; they do not open a desktop.
 
 Logos and icons aren't stored in this repo. The Pi downloads them from Wikimedia Commons and the App Store, using the URLs in `services.json`, and caches them in `~/.local/state/tvbox/logos/`. Until a logo is available, the tile shows the service's letter instead.
 
@@ -306,7 +306,7 @@ Add an entry to `services.json`, then push and run `./update.sh`:
 - **Measure smoothness and load:** `.venv/bin/python scripts/bench.py frames 6` (frames drawn and dropped, CPU per process), `... mem`, `... cpu 5`; see the top of `scripts/bench.py`.
 - **Reset the PIN and forget all remotes:** use **Settings → Phones → Forget all phones**.
 - **Turn off the PIN:** add `Environment=TVBOX_PIN=0` to `deploy/tvbox-server.service`, then push and update.
-- **Audio goes to the wrong output:** HDMI is preferred automatically (`deploy/wireplumber-hdmi.conf`). To override it, run `wpctl status`, then `wpctl set-default <id>`.
+- **Audio goes to the wrong output:** select the right device under **Settings → Audio** on the TV or **Settings → Sound** on the remote. HDMI is preferred until you choose another output (`deploy/wireplumber-hdmi.conf`). For a shell override, run `wpctl status`, then `wpctl set-default <id>`.
 - **Sign out of every streaming service:** run `sudo systemctl stop tvbox-kiosk && rm -rf ~/.config/tvbox-chromium && sudo systemctl start tvbox-kiosk`.
 - **Uninstall:**
   ```bash

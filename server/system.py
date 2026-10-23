@@ -17,6 +17,7 @@ log = logging.getLogger("tvbox.system")
 SINK = "@DEFAULT_AUDIO_SINK@"
 STEP = "5%"
 _VOLUME_RE = re.compile(r"Volume:\s*([\d.]+)(\s*\[MUTED\])?")
+_AUDIO_NODE_RE = re.compile(r"^\s*[│ ]*\s*(\*)?\s*(\d+)\.\s+(.+?)\s*$")
 
 
 def parse_volume(output: str) -> tuple[int, bool] | None:
@@ -25,6 +26,34 @@ def parse_volume(output: str) -> tuple[int, bool] | None:
     if not m:
         return None
     return round(float(m.group(1)) * 100), bool(m.group(2))
+
+
+def parse_audio_outputs(output: str) -> list[dict]:
+    """Parse the audio sinks from `wpctl status`, preserving the current default."""
+    in_audio = False
+    in_sinks = False
+    outputs = []
+    for line in output.splitlines():
+        label = line.strip()
+        if label == "Audio":
+            in_audio = True
+            continue
+        if not in_audio:
+            continue
+        if "Sinks:" in label:
+            in_sinks = True
+            continue
+        if in_sinks and "Sources:" in label:
+            break
+        if not in_sinks:
+            continue
+        match = _AUDIO_NODE_RE.match(line)
+        if not match:
+            continue
+        is_default, output_id, name = match.groups()
+        name = re.sub(r"\s+\[vol:.*$", "", name).strip()
+        outputs.append({"id": int(output_id), "name": name, "default": bool(is_default)})
+    return outputs
 
 
 def _read(path: str) -> str | None:
@@ -201,6 +230,24 @@ class System:
             await _run("wpctl", "set-volume", SINK, f"{percent / 100:.2f}")
             await _run("wpctl", "set-mute", SINK, "0")
         return await self.volume()
+
+    async def audio_outputs(self) -> list[dict]:
+        """Available PipeWire audio sinks, including the selected default."""
+        if not self.has_audio:
+            return []
+        return parse_audio_outputs(await _run("wpctl", "status"))
+
+    async def set_audio_output(self, output_id: int) -> dict:
+        """Select a currently available sink as the persistent PipeWire default."""
+        if isinstance(output_id, bool) or not isinstance(output_id, int) or output_id < 1:
+            raise ValueError("Choose an available audio output")
+        outputs = await self.audio_outputs()
+        selected = next((output for output in outputs if output["id"] == output_id), None)
+        if not selected:
+            raise ValueError("That audio output is no longer available. Refresh the list and try again.")
+        await _run("wpctl", "set-default", str(output_id))
+        return next((output for output in await self.audio_outputs() if output["id"] == output_id),
+                    {**selected, "default": True})
 
     async def power(self, action: str) -> None:
         if action not in ("reboot", "poweroff"):

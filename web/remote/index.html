@@ -193,6 +193,11 @@
       <section>
         <h3>Sound</h3>
         <div class="field"><span>Volume when the box starts</span><div id="set-volume" class="seg"></div></div>
+        <label class="field">Audio output
+          <select id="net-audio-output" class="field-input" aria-describedby="net-audio-status"></select>
+        </label>
+        <p id="net-audio-status" class="note" aria-live="polite">Loading audio outputs…</p>
+        <button id="net-audio-refresh" class="pill small">Refresh outputs</button>
       </section>
       <section>
         <h3>Performance</h3>
@@ -315,7 +320,7 @@
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/remote/remote.js"></script>
   <script src="/remote/settings.js"></script>
-  <script src="/remote/network-settings.js?v=2"></script>
+  <script src="/remote/network-settings.js?v=3"></script>
   <script src="/remote/install.js"></script>
   <script src="/remote/mirror.js"></script>
   <script src="/remote/cast.js"></script>

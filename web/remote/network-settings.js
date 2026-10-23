@@ -3,7 +3,7 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
-  let wifi = [], savedWifi = [], bluetooth = [], selectedSsid = "";
+  let wifi = [], savedWifi = [], bluetooth = [], audioOutputs = [], selectedSsid = "";
 
   async function request(path, body) {
     const options = body === undefined ? {} : {
@@ -69,6 +69,50 @@
       list.append(row);
     }
     if (!bluetooth.length) list.textContent = "Scan to find nearby speakers and keyboards.";
+  }
+
+  function renderAudio() {
+    const select = $("net-audio-output");
+    const current = audioOutputs.find((output) => output.default);
+    select.replaceChildren(...audioOutputs.map((output) => {
+      const option = document.createElement("option");
+      option.value = String(output.id);
+      option.textContent = `${output.name}${output.default ? " · Current" : ""}`;
+      option.selected = output.default;
+      return option;
+    }));
+    select.disabled = !audioOutputs.length;
+    if (!audioOutputs.length) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No audio outputs available";
+      select.append(option);
+      status("net-audio-status", "Connect a speaker, then refresh outputs.");
+    } else {
+      status("net-audio-status", `Current output: ${current?.name || "Unknown"}`);
+    }
+  }
+
+  async function loadAudio() {
+    status("net-audio-status", "Loading audio outputs…");
+    try {
+      audioOutputs = (await request("/api/audio/outputs")).outputs || [];
+      renderAudio();
+    } catch (e) { status("net-audio-status", e.message, true); }
+  }
+
+  async function selectAudio() {
+    const id = Number($("net-audio-output").value);
+    if (!Number.isInteger(id) || id < 1) return;
+    const output = audioOutputs.find((item) => item.id === id);
+    status("net-audio-status", `Switching TV sound to ${output?.name || "selected output"}…`);
+    $("net-audio-output").disabled = true;
+    try {
+      const data = await request("/api/audio/output", { id });
+      audioOutputs = (await request("/api/audio/outputs")).outputs || [];
+      renderAudio();
+      status("net-audio-status", `TV sound is using ${data.output?.name || output?.name || "selected output"}.`);
+    } catch (e) { status("net-audio-status", e.message, true); await loadAudio(); }
   }
 
   async function loadStatus() {
@@ -149,6 +193,7 @@
     try {
       await request(`/api/network/bluetooth/${action}`, { address: device.address });
       await loadStatus();
+      await loadAudio();  // connecting a speaker adds its output to PipeWire
       status("net-bt-status", `${device.name} ${action === "forget" ? "forgotten" : action === "disconnect" ? "disconnected" : action === "connect" ? "connected" : "paired"}.`);
     } catch (e) { status("net-bt-status", e.message, true); }
   }
@@ -157,5 +202,7 @@
   $("net-wifi-connect").addEventListener("click", () => connectWifi(selectedSsid, $("net-wifi-pass").value));
   $("net-wifi-cancel").addEventListener("click", () => { $("net-wifi-password").hidden = true; selectedSsid = ""; });
   $("net-bt-scan").addEventListener("click", scanBluetooth);
-  document.addEventListener("luminara:settings-open", loadStatus);
+  $("net-audio-output").addEventListener("change", selectAudio);
+  $("net-audio-refresh").addEventListener("click", loadAudio);
+  document.addEventListener("luminara:settings-open", () => { loadStatus(); loadAudio(); });
 })();

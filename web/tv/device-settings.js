@@ -7,7 +7,7 @@
   const modal = $("device-settings");
   const content = $("settings-content");
   const tabs = [...document.querySelectorAll(".settings-tab")];
-  const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], savedNetworks: [], devices: [],
+  const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], savedNetworks: [], devices: [], audioOutputs: [],
     connected: "", message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0 };
   const alphabet = [..."abcdefghijklmnopqrstuvwxyz0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"];
 
@@ -21,7 +21,7 @@
   }
 
   function markFocus() {
-    tabs.forEach((b, i) => b.classList.toggle("focus", s.zone === "tabs" && i === (s.tab === "wifi" ? 0 : 1)));
+    tabs.forEach((b, i) => b.classList.toggle("focus", s.zone === "tabs" && i === tabs.findIndex((tab) => tab.dataset.tab === s.tab)));
     $("settings-close").classList.toggle("focus", s.zone === "close");
     const buttons = [...content.querySelectorAll("button[data-nav]")];
     buttons.forEach((b, i) => b.classList.toggle("focus", s.zone === "items" && i === s.index));
@@ -74,7 +74,9 @@
     tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === s.tab));
     content.replaceChildren();
     if (s.passwordSsid) return renderPassword();
-    if (s.tab === "wifi") renderWifi(); else renderBluetooth();
+    if (s.tab === "wifi") renderWifi();
+    else if (s.tab === "bluetooth") renderBluetooth();
+    else renderAudio();
     refreshFocus();
   }
 
@@ -143,6 +145,50 @@
       list.append(empty);
     }
     content.append(list, messageNode());
+  }
+
+  function renderAudio() {
+    const summary = document.createElement("p");
+    summary.className = "settings-summary";
+    summary.textContent = "Choose where TV sound plays. Bluetooth speakers must be connected first.";
+    const actions = document.createElement("div");
+    actions.className = "settings-actions";
+    actions.append(btn("Refresh outputs", loadAudio));
+    content.append(summary, actions);
+    const list = document.createElement("div");
+    list.className = "settings-list";
+    s.audioOutputs.forEach((output) => list.append(row(output.name,
+      output.default ? "Current output" : "Select for TV sound", () => selectAudio(output), output.default)));
+    if (!s.audioOutputs.length) {
+      const empty = document.createElement("p");
+      empty.className = "settings-summary";
+      empty.textContent = "No audio outputs found. Refresh after connecting a speaker.";
+      list.append(empty);
+    }
+    content.append(list, messageNode());
+  }
+
+  async function loadAudio() {
+    s.busy = true;
+    setMessage("Loading audio outputs…");
+    try {
+      s.audioOutputs = (await request("/api/audio/outputs")).outputs || [];
+      s.message = s.audioOutputs.length ? "Select the output for TV sound." : "No audio outputs are available.";
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
+    render();
+  }
+
+  async function selectAudio(output) {
+    s.busy = true;
+    setMessage(`Switching TV sound to ${output.name}…`);
+    try {
+      const data = await request("/api/audio/output", { id: output.id });
+      s.audioOutputs = (await request("/api/audio/outputs")).outputs || [];
+      s.message = `TV sound is using ${data.output?.name || output.name}.`;
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
+    render();
   }
 
   function messageNode() {
@@ -305,6 +351,7 @@
     s.zone = "tabs";
     s.index = 0;
     render();
+    if (tab === "audio") loadAudio();
   }
 
   function open() {
@@ -355,7 +402,10 @@
       e.preventDefault(); return true;
     }
     if (s.zone === "tabs") {
-      if (k === "ArrowLeft" || k === "ArrowRight") switchTab(k === "ArrowLeft" ? "wifi" : "bluetooth");
+      if (k === "ArrowLeft" || k === "ArrowRight") {
+        const index = tabs.findIndex((tab) => tab.dataset.tab === s.tab);
+        switchTab(tabs[(index + (k === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length].dataset.tab);
+      }
       else if (k === "ArrowDown") { s.zone = "items"; s.index = 0; refreshFocus(); }
       else if (k === "ArrowUp") { s.zone = "close"; markFocus(); }
       else if (k === "Enter" || k === " ") switchTab(s.tab);
