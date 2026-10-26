@@ -276,6 +276,11 @@ class System:
     async def wifi_status(self) -> dict:
         return await self.network_helper("wifi-status")
 
+    async def wifi_radio(self, enabled: bool) -> dict:
+        if not isinstance(enabled, bool):
+            raise ValueError("Choose whether Wi-Fi should be on or off")
+        return await self.network_helper("wifi-radio", enabled=enabled)
+
     async def wifi_saved(self) -> list[dict]:
         return (await self.network_helper("wifi-saved")).get("networks", [])
 
@@ -305,6 +310,14 @@ class System:
     async def bluetooth_devices(self, scan: bool = False) -> list[dict]:
         action = "bluetooth-scan" if scan else "bluetooth-devices"
         return (await self.network_helper(action)).get("devices", [])
+
+    async def bluetooth_status(self) -> dict:
+        return await self.network_helper("bluetooth-status")
+
+    async def bluetooth_radio(self, enabled: bool) -> dict:
+        if not isinstance(enabled, bool):
+            raise ValueError("Choose whether Bluetooth should be on or off")
+        return await self.network_helper("bluetooth-radio", enabled=enabled)
 
     async def bluetooth_pair(self, address: str) -> str:
         if not isinstance(address, str) or not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", address):

@@ -42,12 +42,21 @@ def split_nmcli(line: str) -> list[str]:
 
 
 def wifi_status() -> dict:
+    enabled = run("nmcli", "-t", "radio", "wifi").lower() == "enabled"
     output = run("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device")
     for line in output.splitlines():
         fields = split_nmcli(line)
         if len(fields) >= 4 and fields[1] == "wifi" and fields[2] == "connected":
-            return {"available": True, "connected": fields[3]}
-    return {"available": True, "connected": ""}
+            return {"available": True, "enabled": enabled, "connected": fields[3]}
+    return {"available": True, "enabled": enabled, "connected": ""}
+
+
+def bluetooth_status() -> dict:
+    output = run("bluetoothctl", "show", timeout=8)
+    powered = re.search(r"^\s*Powered:\s*(yes|no)\s*$", output, re.MULTILINE | re.IGNORECASE)
+    if not powered:
+        raise RuntimeError("Bluetooth controller status is unavailable")
+    return {"available": True, "enabled": powered.group(1).lower() == "yes"}
 
 
 def wifi_profiles() -> list[dict]:
@@ -174,6 +183,12 @@ def main() -> None:
         action = request.get("action")
         if action == "wifi-status":
             result = wifi_status()
+        elif action == "wifi-radio":
+            enabled = request.get("enabled")
+            if not isinstance(enabled, bool):
+                raise ValueError("Choose whether Wi-Fi should be on or off")
+            run("nmcli", "radio", "wifi", "on" if enabled else "off", timeout=12)
+            result = {"message": f"Wi-Fi turned {'on' if enabled else 'off'}", **wifi_status()}
         elif action == "wifi-scan":
             result = {"networks": wifi_scan()}
         elif action == "wifi-connect":
@@ -207,6 +222,22 @@ def main() -> None:
             result = {"message": wifi_forget(request.get("ssid"))}
         elif action == "bluetooth-devices":
             result = {"devices": bluetooth_devices()}
+        elif action == "bluetooth-status":
+            result = bluetooth_status()
+        elif action == "bluetooth-radio":
+            enabled = request.get("enabled")
+            if not isinstance(enabled, bool):
+                raise ValueError("Choose whether Bluetooth should be on or off")
+            if enabled:
+                try:
+                    message = run("bluetoothctl", "power", "on", timeout=12)
+                except RuntimeError:
+                    # Recover controllers that BlueZ leaves in off-blocked after a radio cycle.
+                    run("systemctl", "restart", "bluetooth", timeout=18)
+                    message = run("bluetoothctl", "power", "on", timeout=12)
+            else:
+                message = run("bluetoothctl", "power", "off", timeout=12)
+            result = {"message": message, **bluetooth_status()}
         elif action == "bluetooth-scan":
             result = {"devices": bluetooth_devices(scan=True)}
         elif action == "bluetooth-pair":

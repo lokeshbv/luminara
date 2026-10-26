@@ -66,6 +66,11 @@ apply() {  # $1 = 1 to force a restart
     run_installer
   fi
 
+  if changed '^deploy/tvbox-network$'; then
+    say "Updating network helper"
+    as_root install -o root -g root -m 0755 deploy/tvbox-network /usr/local/libexec/tvbox-network
+  fi
+
   if changed '^requirements\.txt$'; then
     say "Updating Python packages"
     as_owner .venv/bin/pip install --quiet --disable-pip-version-check -r requirements.txt

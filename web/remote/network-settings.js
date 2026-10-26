@@ -118,17 +118,37 @@
   async function loadStatus() {
     try {
       const data = await request("/api/network/status");
-      status("net-wifi-status", data.wifi?.connected ? `Connected to ${data.wifi.connected}` : "Not connected to Wi-Fi");
+      const wifiEnabled = data.wifi?.enabled !== false;
+      $("net-wifi-power").textContent = wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on";
+      status("net-wifi-status", !wifiEnabled ? "Wi-Fi is off" : data.wifi?.connected ? `Connected to ${data.wifi.connected}` : "Not connected to Wi-Fi");
       savedWifi = data.saved_wifi || [];
       wifi = [...wifi];
       renderWifi();
       bluetooth = data.bluetooth || [];
-      status("net-bt-status", data.bluetooth_error || (bluetooth.length ? "Paired and nearby devices" : "No paired Bluetooth devices"), !!data.bluetooth_error);
+      const bluetoothEnabled = data.bluetooth_enabled !== false;
+      $("net-bt-power").textContent = bluetoothEnabled ? "Turn Bluetooth off" : "Turn Bluetooth on";
+      status("net-bt-status", data.bluetooth_error || (!bluetoothEnabled ? "Bluetooth is off" : bluetooth.length ? "Paired and nearby devices" : "No paired Bluetooth devices"), !!data.bluetooth_error);
       renderBluetooth();
     } catch (e) {
       status("net-wifi-status", e.message, true);
       status("net-bt-status", e.message, true);
     }
+  }
+
+  async function setRadio(kind, enabled) {
+    const isWifi = kind === "wifi";
+    const button = $(isWifi ? "net-wifi-power" : "net-bt-power");
+    const statusId = isWifi ? "net-wifi-status" : "net-bt-status";
+    const label = isWifi ? "Wi-Fi" : "Bluetooth";
+    button.disabled = true;
+    status(statusId, `${enabled ? "Turning on" : "Turning off"} ${label}…`);
+    try {
+      const result = await request(`/api/network/${kind}/radio`, { enabled });
+      await loadStatus();
+      status(statusId, result.message || `${label} turned ${enabled ? "on" : "off"}.`);
+      if (kind === "bluetooth" && enabled) await loadAudio();
+    } catch (e) { status(statusId, e.message, true); }
+    finally { button.disabled = false; }
   }
 
   async function scanWifi() {
@@ -199,9 +219,11 @@
   }
 
   $("net-wifi-scan").addEventListener("click", scanWifi);
+  $("net-wifi-power").addEventListener("click", () => setRadio("wifi", $("net-wifi-power").textContent === "Turn Wi-Fi on"));
   $("net-wifi-connect").addEventListener("click", () => connectWifi(selectedSsid, $("net-wifi-pass").value));
   $("net-wifi-cancel").addEventListener("click", () => { $("net-wifi-password").hidden = true; selectedSsid = ""; });
   $("net-bt-scan").addEventListener("click", scanBluetooth);
+  $("net-bt-power").addEventListener("click", () => setRadio("bluetooth", $("net-bt-power").textContent === "Turn Bluetooth on"));
   $("net-audio-output").addEventListener("change", selectAudio);
   $("net-audio-refresh").addEventListener("click", loadAudio);
   document.addEventListener("luminara:settings-open", () => { loadStatus(); loadAudio(); });

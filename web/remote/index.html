@@ -212,7 +212,7 @@
         <h3>Wi-Fi</h3>
         <p id="net-wifi-status" class="note">Loading Wi-Fi status…</p>
         <p class="note">Saved networks stay listed after disconnecting. The last network you connect to is preferred at startup. Changing networks can disconnect this remote until your phone joins the same Wi-Fi.</p>
-        <button id="net-wifi-scan" class="pill small">Scan for networks</button>
+        <div class="row"><button id="net-wifi-scan" class="pill small">Scan for networks</button><button id="net-wifi-power" class="pill small">Turn Wi-Fi off</button></div>
         <div id="net-wifi-list" class="list"></div>
         <div id="net-wifi-password" class="stack" hidden>
           <label class="field">Password for <span id="net-wifi-ssid"></span><input id="net-wifi-pass" class="field-input" type="password" maxlength="63" autocomplete="current-password"></label>
@@ -222,7 +222,7 @@
       <section>
         <h3>Bluetooth</h3>
         <p id="net-bt-status" class="note">Paired devices stay saved after disconnecting. The last device you connect to is retried at startup.</p>
-        <button id="net-bt-scan" class="pill small">Scan for devices</button>
+        <div class="row"><button id="net-bt-scan" class="pill small">Scan for devices</button><button id="net-bt-power" class="pill small">Turn Bluetooth off</button></div>
         <div id="net-bt-list" class="list"></div>
       </section>
       <section id="android-install" hidden>
@@ -320,7 +320,7 @@
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/remote/remote.js"></script>
   <script src="/remote/settings.js"></script>
-  <script src="/remote/network-settings.js?v=3"></script>
+  <script src="/remote/network-settings.js?v=4"></script>
   <script src="/remote/install.js"></script>
   <script src="/remote/mirror.js"></script>
   <script src="/remote/cast.js"></script>

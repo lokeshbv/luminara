@@ -241,6 +241,7 @@ dialog.sheet[open] { animation: slide-up .3s cubic-bezier(.2, .9, .3, 1); }
 .sheet-body .pill.small { flex: none; }
 
 .list { display: flex; flex-direction: column; gap: 4px; }
+#net-wifi-list, #net-bt-list { max-height: min(46vh, 440px); overflow-y: auto; overscroll-behavior: contain; }
 .network-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 50px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: left; }
 .network-row > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 650; }
 .network-row small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; margin-top: 3px; }

@@ -196,8 +196,8 @@ kbd {
   padding: 5vh 6vw; background: rgba(5, 6, 10, .96);
 }
 .settings-card {
-  width: min(86vw, 1150px); height: min(84vh, 820px); display: grid;
-  grid-template-rows: auto auto 1fr auto; gap: 2vh; padding: 3vh 3vw;
+  width: min(92vw, 1300px); height: min(92vh, 940px); display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 1.5vh; padding: 2.5vh 3vw;
   border: 1px solid rgba(255,255,255,.14); border-radius: 1.4vw;
   background: linear-gradient(145deg, rgba(29,32,45,.98), rgba(13,15,22,.98));
   box-shadow: 0 2vw 8vw rgba(0,0,0,.55);
@@ -215,7 +215,7 @@ kbd {
 }
 .settings-content { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1vh; }
 .settings-summary { font-size: 1.15vw; color: var(--muted); margin-bottom: .4vh; }
-.settings-list { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .7vh; }
+.settings-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: .7vh; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 2vw; text-align: left; width: 100%; }
 .settings-row small { color: var(--muted); font-size: .95vw; font-weight: 400; }
 .settings-row .connected { color: #71e3b1; }
@@ -228,7 +228,7 @@ kbd {
 .virtual-key { padding: .65vw .2vw; font-size: 1.05vw; }
 .settings-message { color: #c9cddd; font-size: 1vw; min-height: 1.5em; }
 @media (max-aspect-ratio: 4/3) {
-  .settings-card { width: 92vw; height: 90vh; }
+  .settings-card { width: 94vw; height: 94vh; }
   .settings-head h2 { font-size: 4vw; }
   .settings-tab, .settings-row, .settings-action { font-size: 2vw; }
   .settings-summary, .settings-row small, .settings-help, .settings-message { font-size: 1.6vw; }

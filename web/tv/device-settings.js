@@ -8,7 +8,7 @@
   const content = $("settings-content");
   const tabs = [...document.querySelectorAll(".settings-tab")];
   const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], savedNetworks: [], devices: [], audioOutputs: [],
-    connected: "", message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0 };
+    connected: "", wifiEnabled: true, bluetoothEnabled: true, message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0 };
   const alphabet = [..."abcdefghijklmnopqrstuvwxyz0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"];
 
   function request(url, body) {
@@ -86,7 +86,8 @@
     summary.textContent = s.connected ? `Connected to ${s.connected} · Saved networks reconnect automatically` : "Saved networks reconnect automatically at startup";
     const actions = document.createElement("div");
     actions.className = "settings-actions";
-    actions.append(btn("Scan for networks", scanWifi));
+    actions.append(btn("Scan for networks", scanWifi),
+      btn(s.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on", () => setRadio("wifi", !s.wifiEnabled)));
     content.append(summary, actions);
     const list = document.createElement("div");
     list.className = "settings-list";
@@ -121,7 +122,8 @@
     summary.textContent = "Paired devices stay saved. The last connected device is retried at startup. Put a device in pairing mode, then scan.";
     const actions = document.createElement("div");
     actions.className = "settings-actions";
-    actions.append(btn("Scan for devices", scanBluetooth));
+    actions.append(btn("Scan for devices", scanBluetooth),
+      btn(s.bluetoothEnabled ? "Turn Bluetooth off" : "Turn Bluetooth on", () => setRadio("bluetooth", !s.bluetoothEnabled)));
     content.append(summary, actions);
     const list = document.createElement("div");
     list.className = "settings-list";
@@ -339,10 +341,24 @@
     try {
       const data = await request("/api/network/status");
       s.connected = data.wifi?.connected || "";
+      s.wifiEnabled = data.wifi?.enabled !== false;
       s.savedNetworks = data.saved_wifi || [];
       s.devices = data.bluetooth || [];
+      s.bluetoothEnabled = data.bluetooth_enabled !== false;
       if (data.bluetooth_error) s.message = data.bluetooth_error;
     } catch (e) { s.message = e.message; }
+    render();
+  }
+
+  async function setRadio(kind, enabled) {
+    s.busy = true;
+    setMessage(`${enabled ? "Turning on" : "Turning off"} ${kind === "wifi" ? "Wi-Fi" : "Bluetooth"}…`);
+    try {
+      const data = await request(`/api/network/${kind}/radio`, { enabled });
+      await loadStatus();
+      s.message = data.message || `${kind === "wifi" ? "Wi-Fi" : "Bluetooth"} turned ${enabled ? "on" : "off"}.`;
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
     render();
   }
 

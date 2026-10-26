@@ -738,10 +738,37 @@ async def network_status(request: web.Request):
         wifi["saved_error"] = str(exc)
     try:
         bluetooth = await hub.system.bluetooth_devices()
+        bluetooth_enabled = (await hub.system.bluetooth_status()).get("enabled", False)
         bluetooth_error = ""
     except RuntimeError as exc:
         bluetooth, bluetooth_error = [], str(exc)
-    return web.json_response({"wifi": wifi, "saved_wifi": saved_wifi, "bluetooth": bluetooth, "bluetooth_error": bluetooth_error})
+        bluetooth_enabled = False
+    return web.json_response({"wifi": wifi, "saved_wifi": saved_wifi, "bluetooth": bluetooth,
+                              "bluetooth_enabled": bluetooth_enabled, "bluetooth_error": bluetooth_error})
+
+
+@routes.post("/api/network/wifi/radio")
+async def wifi_radio(request: web.Request):
+    enabled = (await read_json(request)).get("enabled")
+    if not isinstance(enabled, bool):
+        raise web.HTTPBadRequest(text="Choose whether Wi-Fi should be on or off")
+    try:
+        result = await request.app[HUB].system.wifi_radio(enabled)
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(**result)
+
+
+@routes.post("/api/network/bluetooth/radio")
+async def bluetooth_radio(request: web.Request):
+    enabled = (await read_json(request)).get("enabled")
+    if not isinstance(enabled, bool):
+        raise web.HTTPBadRequest(text="Choose whether Bluetooth should be on or off")
+    try:
+        result = await request.app[HUB].system.bluetooth_radio(enabled)
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(**result)
 
 
 @routes.post("/api/network/wifi/scan")
