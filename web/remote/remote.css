@@ -104,6 +104,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   .quick .pill { padding: 0 10px; gap: 5px; font-size: 14px; }
 }
 .pill.small { min-height: 40px; font-size: 14px; padding: 0 12px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill.small svg { width: 18px; height: 18px; }
 .pill.wide { width: 100%; flex: none; }
 .pill.accent { background: var(--accent); border-color: transparent; color: #fff; }

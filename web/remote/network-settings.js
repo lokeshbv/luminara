@@ -82,6 +82,7 @@
       return option;
     }));
     select.disabled = !audioOutputs.length;
+    $("net-audio-test").disabled = !audioOutputs.length;
     if (!audioOutputs.length) {
       const option = document.createElement("option");
       option.value = "";
@@ -113,6 +114,19 @@
       renderAudio();
       status("net-audio-status", `TV sound is using ${data.output?.name || output?.name || "selected output"}.`);
     } catch (e) { status("net-audio-status", e.message, true); await loadAudio(); }
+  }
+
+  async function testAudio() {
+    const id = Number($("net-audio-output").value);
+    if (!Number.isInteger(id) || id < 1) return;
+    const output = audioOutputs.find((item) => item.id === id);
+    status("net-audio-status", `Playing a test tone through ${output?.name || "selected output"}…`);
+    $("net-audio-test").disabled = true;
+    try {
+      await request("/api/audio/test", { id });
+      status("net-audio-status", `Test tone sent to ${output?.name || "selected output"}.`);
+    } catch (e) { status("net-audio-status", e.message, true); }
+    finally { $("net-audio-test").disabled = false; }
   }
 
   async function loadStatus() {
@@ -225,6 +239,7 @@
   $("net-bt-scan").addEventListener("click", scanBluetooth);
   $("net-bt-power").addEventListener("click", () => setRadio("bluetooth", $("net-bt-power").textContent === "Turn Bluetooth on"));
   $("net-audio-output").addEventListener("change", selectAudio);
+  $("net-audio-test").addEventListener("click", testAudio);
   $("net-audio-refresh").addEventListener("click", loadAudio);
   document.addEventListener("luminara:settings-open", () => { loadStatus(); loadAudio(); });
 })();

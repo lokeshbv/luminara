@@ -159,8 +159,22 @@
     content.append(summary, actions);
     const list = document.createElement("div");
     list.className = "settings-list";
-    s.audioOutputs.forEach((output) => list.append(row(output.name,
-      output.default ? "Current output" : "Select for TV sound", () => selectAudio(output), output.default)));
+    s.audioOutputs.forEach((output) => {
+      const item = document.createElement("div");
+      item.className = "settings-row";
+      const info = document.createElement("span");
+      info.textContent = output.name;
+      const detail = document.createElement("small");
+      detail.textContent = output.default ? "Current output" : "Available output";
+      if (output.default) detail.className = "connected";
+      info.append(detail);
+      const actions = document.createElement("div");
+      actions.className = "settings-actions";
+      actions.append(btn(output.default ? "Current" : "Use output", () => selectAudio(output)));
+      actions.append(btn("Test speaker", () => testAudio(output)));
+      item.append(info, actions);
+      list.append(item);
+    });
     if (!s.audioOutputs.length) {
       const empty = document.createElement("p");
       empty.className = "settings-summary";
@@ -188,6 +202,17 @@
       const data = await request("/api/audio/output", { id: output.id });
       s.audioOutputs = (await request("/api/audio/outputs")).outputs || [];
       s.message = `TV sound is using ${data.output?.name || output.name}.`;
+    } catch (e) { s.message = e.message; }
+    s.busy = false;
+    render();
+  }
+
+  async function testAudio(output) {
+    s.busy = true;
+    setMessage(`Playing a test tone through ${output.name}…`);
+    try {
+      await request("/api/audio/test", { id: output.id });
+      s.message = `Test tone sent to ${output.name}.`;
     } catch (e) { s.message = e.message; }
     s.busy = false;
     render();

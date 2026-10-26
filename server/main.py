@@ -599,6 +599,18 @@ async def set_audio_output(request: web.Request):
     return ok(output=output)
 
 
+@routes.post("/api/audio/test")
+async def test_audio_output(request: web.Request):
+    output_id = (await read_json(request)).get("id")
+    try:
+        output = await request.app[HUB].system.test_audio_output(output_id)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text=str(exc))
+    except RuntimeError as exc:
+        return fail(str(exc), 503)
+    return ok(output=output)
+
+
 @routes.get("/api/state")
 async def state(request: web.Request):
     return web.json_response(request.app[HUB].snapshot())

@@ -5,12 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
 import shutil
 import signal
+import struct
+import tempfile
 import time
+import wave
 
 log = logging.getLogger("tvbox.system")
 
@@ -248,6 +252,57 @@ class System:
         await _run("wpctl", "set-default", str(output_id))
         return next((output for output in await self.audio_outputs() if output["id"] == output_id),
                     {**selected, "default": True})
+
+    async def test_audio_output(self, output_id: int) -> dict:
+        """Play a short test tone through one currently available output."""
+        if isinstance(output_id, bool) or not isinstance(output_id, int) or output_id < 1:
+            raise ValueError("Choose an available audio output")
+        outputs = await self.audio_outputs()
+        selected = next((output for output in outputs if output["id"] == output_id), None)
+        if not selected:
+            raise ValueError("That audio output is no longer available. Refresh the list and try again.")
+        player = shutil.which("pw-play")
+        if not player:
+            raise RuntimeError("PipeWire's pw-play command is unavailable")
+
+        sample_rate = 48000
+        samples = []
+        for frequency in (523.25, 659.25, 783.99):
+            count = int(sample_rate * 0.28)
+            for index in range(count):
+                fade = min(1.0, index / 240, (count - index - 1) / 240)
+                value = int(32767 * 0.18 * max(0.0, fade) * math.sin(2 * math.pi * frequency * index / sample_rate))
+                samples.append(struct.pack("<h", value))
+            samples.extend([b"\0\0"] * int(sample_rate * 0.06))
+
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(prefix="luminara-audio-test-", suffix=".wav", delete=False) as temp:
+                temp_path = temp.name
+            with wave.open(temp_path, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(b"".join(samples))
+            proc = await asyncio.create_subprocess_exec(
+                player, "--target", str(output_id), "--volume", "0.35", temp_path,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            try:
+                output, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                raise RuntimeError("Audio test timed out")
+            if proc.returncode != 0:
+                raise RuntimeError(output.decode(errors="replace").strip() or "Audio test failed")
+        finally:
+            if temp_path:
+                try:
+                    Path(temp_path).unlink()
+                except OSError:
+                    pass
+        return selected
 
     async def power(self, action: str) -> None:
         if action not in ("reboot", "poweroff"):

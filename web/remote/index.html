@@ -197,7 +197,10 @@
           <select id="net-audio-output" class="field-input" aria-describedby="net-audio-status"></select>
         </label>
         <p id="net-audio-status" class="note" aria-live="polite">Loading audio outputs…</p>
-        <button id="net-audio-refresh" class="pill small">Refresh outputs</button>
+        <div class="button-row">
+          <button id="net-audio-refresh" class="pill small">Refresh outputs</button>
+          <button id="net-audio-test" class="pill small" disabled>Test speaker</button>
+        </div>
       </section>
       <section>
         <h3>Performance</h3>
@@ -320,7 +323,7 @@
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/remote/remote.js"></script>
   <script src="/remote/settings.js"></script>
-  <script src="/remote/network-settings.js?v=4"></script>
+  <script src="/remote/network-settings.js?v=5"></script>
   <script src="/remote/install.js"></script>
   <script src="/remote/mirror.js"></script>
   <script src="/remote/cast.js"></script>
