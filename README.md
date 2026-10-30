@@ -160,6 +160,7 @@ The installed version is recorded separately from the downloaded one, in `.git/t
   - A short opening animation plays when a service starts.
   - A count of connected remotes.
   - An update banner when a new version is on GitHub.
+- **TV settings:** Wi-Fi connections are saved to NetworkManager for automatic reconnect, with unlimited retry attempts if the router is temporarily unavailable. The password keyboard has uppercase letters, digits, every printable symbol, Space, Show/Hide, Clear and Backspace; forgetting a saved network asks for confirmation.
 - **Screensaver** (after 5 minutes by default; change it in Settings):
   - It only runs on the home screen, never inside an app (the remote's Screensaver button too).
   - It rotates every 30 seconds through a full-screen local forecast, Aurora, Fireplace and Aquarium, one view at a time. Settings → Screensaver → **Start with** chooses which ambient scene appears first.

@@ -199,6 +199,7 @@
   }
 
   async function wifiAction(network, action) {
+    if (action === "forget" && !window.confirm(`Forget “${network.ssid}”? Its saved Wi-Fi password will be removed.`)) return;
     const label = action === "connect-saved" ? "Connecting to" : action === "disconnect" ? "Disconnecting from" : "Forgetting";
     status("net-wifi-status", `${label} ${network.ssid}…`);
     try {

@@ -86,9 +86,13 @@ def wifi_profiles() -> list[dict]:
 
 def prefer_wifi(ssid: str) -> None:
     profile = next((p for p in wifi_profiles() if p["ssid"] == ssid), None)
-    if profile:
-        run("nmcli", "connection", "modify", "id", profile["name"],
-            "connection.autoconnect", "yes", "connection.autoconnect-priority", "100")
+    if not profile:
+        raise RuntimeError(f"Connected to {ssid}, but NetworkManager did not save a reconnect profile")
+    # Keep retrying if the router is briefly offline during boot; NetworkManager's
+    # default retry limit can otherwise leave Wi-Fi disconnected until the next activation.
+    run("nmcli", "connection", "modify", "id", profile["name"],
+        "connection.autoconnect", "yes", "connection.autoconnect-retries", "0",
+        "connection.autoconnect-priority", "100")
 
 
 def wifi_scan() -> list[dict]:

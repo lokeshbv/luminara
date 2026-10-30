@@ -221,15 +221,21 @@ kbd {
 .settings-row .connected { color: #71e3b1; }
 .settings-actions { display: flex; gap: .8vw; }
 .settings-action { padding: .9vw 1.2vw; }
+.settings-action.danger { color: #ffc4c4; border-color: rgba(255,115,115,.45); background: rgba(140,35,35,.28); }
 .settings-help { color: var(--muted); font-size: .95vw; }
 .password-wrap { display: flex; gap: .8vw; align-items: center; }
-.password-view { flex: 1; padding: .8vw 1vw; border-radius: .6vw; background: rgba(0,0,0,.32); font-size: 1.25vw; min-height: 3vw; }
-.virtual-keys { display: grid; grid-template-columns: repeat(10, 1fr); gap: .45vw; }
-.virtual-key { padding: .65vw .2vw; font-size: 1.05vw; }
+.password-view { flex: 0 0 auto; padding: .55vw 1vw; border-radius: .6vw; background: rgba(0,0,0,.32); font-size: 1.25vw; min-height: 2.6vw; letter-spacing: .18em; overflow: hidden; white-space: nowrap; }
+.keyboard-mode { margin: 0; }
+.virtual-keys { min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: .55vh; }
+.virtual-key-row { min-height: 0; flex: 1 1 0; display: flex; justify-content: center; gap: .45vw; }
+.virtual-key { min-width: 0; flex: 1 1 0; padding: .3vw .15vw; font-size: clamp(13px, 1.05vw, 21px); }
+.virtual-key.wide { flex: 1.35 1 0; font-size: clamp(11px, .85vw, 17px); white-space: nowrap; }
 .settings-message { color: #c9cddd; font-size: 1vw; min-height: 1.5em; }
 @media (max-aspect-ratio: 4/3) {
   .settings-card { width: 94vw; height: 94vh; }
   .settings-head h2 { font-size: 4vw; }
   .settings-tab, .settings-row, .settings-action { font-size: 2vw; }
   .settings-summary, .settings-row small, .settings-help, .settings-message { font-size: 1.6vw; }
+  .virtual-key { font-size: clamp(13px, 2vw, 22px); }
+  .virtual-key.wide { font-size: clamp(11px, 1.5vw, 18px); }
 }

@@ -8,8 +8,8 @@
   const content = $("settings-content");
   const tabs = [...document.querySelectorAll(".settings-tab")];
   const s = { open: false, tab: "wifi", zone: "tabs", index: 0, networks: [], savedNetworks: [], devices: [], audioOutputs: [],
-    connected: "", wifiEnabled: true, bluetoothEnabled: true, message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0 };
-  const alphabet = [..."abcdefghijklmnopqrstuvwxyz0123456789 !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"];
+    connected: "", wifiEnabled: true, bluetoothEnabled: true, message: "", busy: false, passwordSsid: "", password: "", keyIndex: 0,
+    keyboardMode: "letters", shifted: false, showPassword: false, pendingForget: null };
 
   function request(url, body) {
     return fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {})
@@ -28,6 +28,7 @@
     if (s.zone === "items") buttons[s.index]?.scrollIntoView({ block: "nearest" });
     if (s.zone === "keyboard") {
       const keys = [...content.querySelectorAll(".virtual-key[data-nav]")];
+      s.keyIndex = Math.max(0, Math.min(s.keyIndex, keys.length - 1));
       keys.forEach((b, i) => b.classList.toggle("focus", i === s.keyIndex));
       keys[s.keyIndex]?.scrollIntoView({ block: "nearest" });
     }
@@ -74,6 +75,7 @@
     tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === s.tab));
     content.replaceChildren();
     if (s.passwordSsid) return renderPassword();
+    if (s.pendingForget) return renderForgetConfirmation();
     if (s.tab === "wifi") renderWifi();
     else if (s.tab === "bluetooth") renderBluetooth();
     else renderAudio();
@@ -104,7 +106,7 @@
         info.append(detail);
         item.append(info);
         item.append(network.active ? btn("Disconnect", () => wifiAction(network, "disconnect")) : btn("Connect", () => chooseWifi(network)));
-        if (network.saved) item.append(btn("Forget", () => wifiAction(network, "forget")));
+        if (network.saved) item.append(btn("Forget", () => confirmForget(network)));
         list.append(item);
       });
     } else {
@@ -229,31 +231,117 @@
     const title = document.createElement("p");
     title.className = "settings-summary";
     title.textContent = `Enter the Wi-Fi password for ${s.passwordSsid}`;
+    const mode = document.createElement("p");
+    mode.className = "settings-summary keyboard-mode";
+    mode.textContent = s.keyboardMode === "symbols"
+      ? "Symbols · choose ABC to return to letters"
+      : `Letters and numbers${s.shifted ? " · Shift is on" : ""}`;
     const view = document.createElement("div");
     view.className = "password-view";
     view.setAttribute("aria-label", "Password");
-    view.textContent = s.password ? "•".repeat(s.password.length) : "Select characters below";
+    view.textContent = s.password ? s.showPassword ? s.password : "•".repeat(s.password.length) : "Select characters below";
     const keys = document.createElement("div");
     keys.className = "virtual-keys";
-    [...alphabet, "⌫", "Clear", "Connect", "Cancel"].forEach((key, index) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "virtual-key";
-      b.dataset.nav = "";
-      b.textContent = key === " " ? "Space" : key;
-      b.addEventListener("click", () => useKey(key));
-      keys.append(b);
-      if (index === s.keyIndex) b.classList.add("focus");
+    passwordKeyRows().forEach((row) => {
+      const line = document.createElement("div");
+      line.className = "virtual-key-row";
+      row.forEach(({ label, value, wide = false, ariaLabel }) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `virtual-key${wide ? " wide" : ""}`;
+        b.dataset.nav = "";
+        b.textContent = label;
+        if (ariaLabel) b.setAttribute("aria-label", ariaLabel);
+        b.addEventListener("click", () => useKey(value));
+        line.append(b);
+      });
+      keys.append(line);
     });
-    content.append(title, view, keys, messageNode());
+    content.append(title, mode, view, keys, messageNode());
     s.zone = "keyboard";
+    markFocus();
+  }
+
+  function passwordKeyRows() {
+    const row = (chars) => [...chars].map((char) => ({ label: char, value: char }));
+    const control = (label, value, ariaLabel = label) => ({ label, value, wide: true, ariaLabel });
+    if (s.keyboardMode === "symbols") {
+      return [
+        row("!@#$%^&*()"),
+        row("-_=+[]{}\\"),
+        row(";:'\",.<>/?"),
+        row("`|~"),
+        [control("ABC", "LETTERS", "Return to letters"), control("⌫", "BACKSPACE", "Backspace"),
+          control(s.showPassword ? "Hide" : "Show", "TOGGLE_PASSWORD"), control("Clear", "CLEAR"), control("Space", "SPACE"),
+          control("Cancel", "CANCEL"), control("Connect", "CONNECT")],
+      ];
+    }
+    const digits = s.shifted ? "!@#$%^&*()" : "1234567890";
+    const letters = (chars) => [...chars].map((char) => ({ label: s.shifted ? char.toUpperCase() : char, value: s.shifted ? char.toUpperCase() : char }));
+    return [
+      row(digits),
+      letters("qwertyuiop"),
+      letters("asdfghjkl"),
+      [control("⇧", "SHIFT", s.shifted ? "Turn uppercase off" : "Turn uppercase on"), ...letters("zxcvbnm"), control("⌫", "BACKSPACE", "Backspace")],
+      [control("?123", "SYMBOLS", "Symbols"), control(s.showPassword ? "Hide" : "Show", "TOGGLE_PASSWORD"), control("Clear", "CLEAR"), control("Space", "SPACE"),
+        control("Cancel", "CANCEL"), control("Connect", "CONNECT")],
+    ];
+  }
+
+  function renderForgetConfirmation() {
+    const title = document.createElement("p");
+    title.className = "settings-summary";
+    title.textContent = `Forget Wi-Fi network “${s.pendingForget.ssid}”?`;
+    const detail = document.createElement("p");
+    detail.className = "settings-summary";
+    detail.textContent = "Its saved password will be removed. It will not reconnect until you enter the password again.";
+    const actions = document.createElement("div");
+    actions.className = "settings-actions";
+    actions.append(btn("Keep saved", () => { s.pendingForget = null; s.index = 0; render(); }),
+      btn("Forget network", () => { const network = s.pendingForget; s.pendingForget = null; wifiAction(network, "forget"); }, "danger"));
+    content.append(title, detail, actions, messageNode());
+    refreshFocus();
+  }
+
+  function confirmForget(network) {
+    s.pendingForget = network;
+    s.zone = "items";
+    s.index = 0;
+    render();
+  }
+
+  function moveKeyboardFocus(key) {
+    const rows = [...content.querySelectorAll(".virtual-key-row")].map((line) => [...line.querySelectorAll(".virtual-key[data-nav]")]);
+    const keys = rows.flat();
+    const current = keys[s.keyIndex];
+    if (!current) return;
+    const rowIndex = rows.findIndex((line) => line.includes(current));
+    const colIndex = rows[rowIndex].indexOf(current);
+    let next;
+    if (key === "ArrowLeft" || key === "ArrowRight") {
+      next = rows[rowIndex][colIndex + (key === "ArrowLeft" ? -1 : 1)];
+    } else {
+      const nextRowIndex = rowIndex + (key === "ArrowUp" ? -1 : 1);
+      const nextRow = rows[nextRowIndex];
+      if (nextRow?.length) {
+        const ratio = rows[rowIndex].length <= 1 ? 0 : colIndex / (rows[rowIndex].length - 1);
+        next = nextRow[Math.round(ratio * (nextRow.length - 1))];
+      }
+    }
+    if (next) s.keyIndex = keys.indexOf(next);
+    markFocus();
   }
 
   function useKey(key) {
-    if (key === "⌫") s.password = s.password.slice(0, -1);
-    else if (key === "Clear") s.password = "";
-    else if (key === "Connect") { connectWifi(s.passwordSsid, s.password); return; }
-    else if (key === "Cancel") { s.passwordSsid = ""; s.password = ""; s.zone = "items"; }
+    if (key === "BACKSPACE") s.password = s.password.slice(0, -1);
+    else if (key === "CLEAR") s.password = "";
+    else if (key === "CONNECT") { connectWifi(s.passwordSsid, s.password); return; }
+    else if (key === "CANCEL") { s.passwordSsid = ""; s.password = ""; s.zone = "items"; }
+    else if (key === "SHIFT") s.shifted = !s.shifted;
+    else if (key === "SYMBOLS") s.keyboardMode = "symbols";
+    else if (key === "LETTERS") s.keyboardMode = "letters";
+    else if (key === "TOGGLE_PASSWORD") s.showPassword = !s.showPassword;
+    else if (key === "SPACE") { if (s.password.length < 63) s.password += " "; }
     else if (s.password.length < 63) s.password += key;
     render();
   }
@@ -265,6 +353,9 @@
       s.passwordSsid = network.ssid;
       s.password = "";
       s.keyIndex = 0;
+      s.keyboardMode = "letters";
+      s.shifted = false;
+      s.showPassword = false;
       render();
     } else connectWifi(network.ssid, "");
   }
@@ -402,6 +493,7 @@
     s.index = 0;
     s.passwordSsid = "";
     s.password = "";
+    s.pendingForget = null;
     s.message = "";
     modal.hidden = false;
     loadStatus();
@@ -414,25 +506,31 @@
     modal.hidden = true;
     s.passwordSsid = "";
     s.password = "";
+    s.pendingForget = null;
   }
 
   function handleKey(e) {
     if (!s.open) return false;
     const k = e.key;
+    if (s.pendingForget) {
+      if (k === "Escape") { s.pendingForget = null; s.zone = "items"; render(); }
+      else if (k.startsWith("Arrow")) {
+        const items = [...content.querySelectorAll("button[data-nav]")];
+        if (k === "ArrowLeft" || k === "ArrowUp") s.index = Math.max(0, s.index - 1);
+        if (k === "ArrowRight" || k === "ArrowDown") s.index = Math.min(items.length - 1, s.index + 1);
+        refreshFocus();
+      } else if (k === "Enter" || k === " ") content.querySelectorAll("button[data-nav]")[s.index]?.click();
+      else return false;
+      e.preventDefault();
+      return true;
+    }
     if (s.passwordSsid && s.zone === "keyboard") {
       if (k === "Escape") { s.passwordSsid = ""; s.password = ""; s.zone = "items"; render(); }
       else if (k === "Backspace") { s.password = s.password.slice(0, -1); render(); }
-      else if (k === "Enter") useKey("Connect");
+      else if (k === "Enter") useKey("CONNECT");
       else if (k.length === 1 && !e.metaKey && !e.ctrlKey && s.password.length < 63) { s.password += k; render(); }
-      else if (k.startsWith("Arrow")) {
-        const keys = [...content.querySelectorAll(".virtual-key[data-nav]")];
-        const cols = 10, max = keys.length - 1;
-        if (k === "ArrowLeft") s.keyIndex = Math.max(0, s.keyIndex - 1);
-        if (k === "ArrowRight") s.keyIndex = Math.min(max, s.keyIndex + 1);
-        if (k === "ArrowUp") s.keyIndex = Math.max(0, s.keyIndex - cols);
-        if (k === "ArrowDown") s.keyIndex = Math.min(max, s.keyIndex + cols);
-        markFocus();
-      } else return false;
+      else if (k.startsWith("Arrow")) moveKeyboardFocus(k);
+      else return false;
       e.preventDefault();
       return true;
     }
